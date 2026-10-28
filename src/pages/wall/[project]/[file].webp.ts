@@ -1,12 +1,12 @@
 // Wall textures: each wall image cropped to its frame around its focus point, 768 px on the long side.
 import type { APIRoute, GetStaticPaths } from 'astro';
 import sharp from 'sharp';
-import { SHAPE, cropBox, siteData, type Source } from '../../../lib/data';
+import { LOGO, SHAPE, cropBox, siteData, type Source } from '../../../lib/data';
 
 export const getStaticPaths = (async () => {
   const { wall, sources } = await siteData();
   return wall.rows.flatMap((r) =>
-    r.tiles.map(([k, code]) => {
+    r.tiles.filter(([k]) => k !== LOGO).map(([k, code]) => {
       const [project, file] = k.split('/');
       return { params: { project, file }, props: { src: sources[k], ratio: SHAPE[code][0] } };
     }),

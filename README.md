@@ -7,7 +7,11 @@ panels. Every project and panel also has its own address (`/work/kings-avenue/`,
 
 The whole site uses one typeface, DM Sans (set in `astro.config.mjs`). The home page opens with
 "Vistaraa / Architects"; on the first scroll the V and the A fly to the top-left corner and become
-the logo. The two lines are `wordmark` in `src/site.ts`.
+the logo, and clicking that logo plays it back. The two lines are `wordmark` in `src/site.ts`.
+
+The site is dark, with a light version: the half-filled circle in the top bar switches between
+them, and each browser remembers its choice. Both sets of colours are at the top of
+`src/styles/gallery.css` (`:root` for dark, `:root[data-theme="light"]` for light).
 
 ## Run it on your computer
 
@@ -36,7 +40,7 @@ after 30 minutes unused; reopen it from the same **Code → Codespaces** menu.
 | Which images hang on the wall, and where | `wall:` lines in each project, and `src/content/wall.yaml` |
 | About text, founders, services, contact details, enquiry form, Careers text | `src/site.ts` |
 | Founders' portraits | `src/assets/studio/` |
-| Look and feel | `src/styles/gallery.css` |
+| Look and feel, dark and light colours | `src/styles/gallery.css` |
 | Wall motion, project view, panels | `src/scripts/gallery.js` |
 | Page markup | `src/components/Gallery.astro` |
 
@@ -84,7 +88,9 @@ The image is cropped to that shape around its centre. To keep a different part i
 right). A good wall mixes shapes. Upright photographs suit `tall` and `portrait` best.
 
 New wall images are added to the wall automatically. To arrange them by hand, list them in
-`src/content/wall.yaml` (see the notes at the top of that file).
+`src/content/wall.yaml` (see the notes at the top of that file). The line `- logo` there hangs the
+studio's logo among the images (clicking it opens About); move it to another row or position to
+move the tile, or delete it to remove the tile.
 
 ### Video
 

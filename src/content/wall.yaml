@@ -5,6 +5,7 @@
 # Any image marked `wall:` that is NOT listed here is added automatically to the
 # shortest row, so a new project shows up without editing this file.
 # Tiles that no longer exist (e.g. a deleted project) are skipped.
+# `logo` hangs the studio's logo (4:5) in that place; clicking it opens About.
 #
 # size: large | small   row height
 # shift: pixels         slides a row sideways so columns don't line up
@@ -26,6 +27,7 @@ rows:
     shift: 140
     tiles:
       - aryan-icon/tower-night
+      - logo
       - kings-avenue-clubhouse/cafe-1
       - kings-avenue/estate-aerial
       - nirajs-bungalow/home-theatre-1

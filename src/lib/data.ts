@@ -30,6 +30,8 @@ const FRAME_CODE: Record<(typeof WALL_FRAMES)[number], string> = {
 };
 const ROW_PX = { A: 440, B: 330 };
 const DEFAULT_ROWS = [['large', 0], ['small', 140], ['large', -260], ['small', 380], ['large', 90], ['small', -420]] as const;
+/** In wall.yaml, this name hangs the studio's logo on the wall (drawn by the wall script, 4:5). */
+export const LOGO = 'logo';
 
 export interface Img {
   k: string; p: string; w: number; h: number; alt: string; cap: string;
@@ -154,8 +156,16 @@ function buildWall(sources: Record<string, Source>, projects: Project[]) {
     row.width += ROW_PX[row.band] * f * ar + 84;
     used.add(k);
   };
+  let logo = false;
   for (const r of rows) {
     for (const k of r.want) {
+      if (k === LOGO) {
+        if (logo) continue;
+        logo = true;
+        r.tiles.push([LOGO, 'P']);
+        r.width += ROW_PX[r.band] * SHAPE.P[1] * SHAPE.P[0] + 84;
+        continue;
+      }
       if (!sources[k]) { console.warn(`[wall] ${file} lists "${k}", which is not an image in any project. Skipped.`); continue; }
       if (!used.has(k)) add(r, k);
     }

@@ -5,7 +5,7 @@
 import { gsap } from 'gsap';
 import Lenis from 'lenis';
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, PlaneGeometry, DataTexture, Vector2,
+  WebGLRenderer, Scene, PerspectiveCamera, PlaneGeometry, DataTexture, Vector2, Vector3,
   ShaderMaterial, Mesh, VideoTexture, LinearFilter, Texture, MathUtils,
 } from 'three';
 
@@ -22,6 +22,10 @@ const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FINE = matchMedia('(hover: hover) and (pointer: fine)').matches;
 const Q = new URLSearchParams(location.search);
+const html = document.documentElement;
+const cssVar = (name) => getComputedStyle(html).getPropertyValue(name).trim();
+// a #rrggbb colour from gallery.css as 0–1 RGB
+const cssRGB = (name) => { const h = cssVar(name).replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255 || 0); };
 let VW = innerWidth, VH = innerHeight;
 document.documentElement.style.setProperty('--vh', VH + 'px');
 
@@ -41,11 +45,12 @@ const [START_KIND, START_ID] = (document.body.dataset.start || '').split(':');
 const WL = DATA.wall;
 const SHAPE = { T: [2 / 3, 1], P: [0.8, 0.96], S: [1, 0.84], L: [1.5, 0.78], W: [16 / 9, 0.74], X: [4 / 3, 0.92] };
 const BAND = { A: 440, B: 330 };
+const LOGO = 'logo';           // the studio's logo as a tile (see drawLogo)
 const TILES = [];
 const ROWS = WL.rows.map((r, ri) => ({
   band: r.band, shift: r.shift || 0,
   tiles: r.tiles.map(([k, sh]) => {
-    const t = { k, sh, img: IM[k], row: ri, x: 0, w: 0, h: 0, dx: 0, dy: 0, e: 0, hov: 0, hide: 1, loaded: 0, vis: false, focus: WL.focus[k] || [0.5, 0.5] };
+    const t = { k, sh, img: IM[k], logo: k === LOGO, row: ri, x: 0, w: 0, h: 0, dx: 0, dy: 0, e: 0, hov: 0, hide: 1, loaded: 0, vis: false, focus: WL.focus[k] || [0.5, 0.5] };
     TILES.push(t); return t;
   }),
 }));
@@ -134,6 +139,7 @@ const FS = /* glsl */`
 precision highp float;
 uniform sampler2D uTex; uniform vec2 uPlane; uniform vec2 uImg; uniform vec2 uFocus; uniform vec2 uShift;
 uniform float uZoom; uniform float uDim; uniform float uGrade; uniform float uAlpha; uniform float uLoaded;
+uniform vec3 uFade; uniform vec3 uTint; uniform vec3 uPh;
 varying vec2 vUv; varying float vShade;
 void main() {
   float pr = uPlane.x / uPlane.y, ir = uImg.x / uImg.y;
@@ -145,10 +151,11 @@ void main() {
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   vec3 g = mix(vec3(l), c, 0.8);
   g = (g - 0.5) * 1.05 + 0.5;
-  g *= vec3(0.885, 0.875, 0.855);
+  g *= uTint;
   c = mix(c, g, uGrade);
-  c *= uDim * vShade;
-  c = mix(vec3(0.085, 0.083, 0.08) * uDim, c, uLoaded);
+  // dimmed tiles fade to black on the dark theme, to the page colour on the light one
+  c = mix(uFade, c, uDim * vShade);
+  c = mix(mix(uFade, uPh, uDim), c, uLoaded);
   gl_FragColor = vec4(c * uAlpha, uAlpha);
 }`;
 
@@ -167,7 +174,10 @@ function makeGL(canvas) {
   const geo = new PlaneGeometry(1, 1, 24, 24);
   const blank = new DataTexture(new Uint8Array([22, 22, 21, 255]), 1, 1);
   blank.needsUpdate = true;
-  const shared = { uView: { value: new Vector2(VW, VH) }, uBend: { value: 0 }, uDir: { value: new Vector2(1, 0) } };
+  const shared = {
+    uView: { value: new Vector2(VW, VH) }, uBend: { value: 0 }, uDir: { value: new Vector2(1, 0) },
+    uFade: { value: new Vector3() }, uTint: { value: new Vector3() }, uPh: { value: new Vector3() },
+  };
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const queue = [];
   const api = {
@@ -178,6 +188,11 @@ function makeGL(canvas) {
       D = VH / 2 / Math.tan(MathUtils.degToRad(FOV / 2));
       camera.updateProjectionMatrix();
       shared.uView.value.set(VW, VH);
+    },
+    // the theme's wall colours (--wall-fade, --wall-tint, --wall-ph in gallery.css)
+    colors() {
+      for (const [u, v] of [['uFade', '--wall-fade'], ['uTint', '--wall-tint'], ['uPh', '--wall-ph']]) shared[u].value.set(...cssRGB(v));
+      for (const t of TILES) if (t.tex && t.logo) t.tex.needsUpdate = true;
     },
     add(t) {
       const mat = new ShaderMaterial({
@@ -220,7 +235,7 @@ function makeGL(canvas) {
         // bitmaps arrive already flipped (see loadTiles); images are flipped by WebGL
         if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) tex.flipY = false;
         tex.anisotropy = aniso; tex.needsUpdate = true;
-        t.u.uTex.value = tex;
+        t.u.uTex.value = t.tex = tex;
         t.u.uImg.value.set(img.naturalWidth || img.width, img.naturalHeight || img.height);
         renderer.initTexture(tex);
         t.texReady = true;
@@ -241,7 +256,7 @@ function makeGL(canvas) {
         u.uShift.value.set(sx * e, sy * e);
         u.uZoom.value = ZOOM(t);
         u.uDim.value = W.dim * (1 - 0.46 * W.hoverAny * (1 - t.hov));
-        u.uGrade.value = 1 - t.hov;
+        u.uGrade.value = t.logo ? 0 : 1 - t.hov;
         u.uAlpha.value = Math.min(1, e * 2.2) * W.alpha * t.hide;
         u.uLoaded.value = t.loaded;
       }
@@ -260,6 +275,7 @@ function makeDOM(root) {
   const api = {
     kind: 'dom',
     resize() {},
+    colors() {},
     add(t) {
       const el = document.createElement('div');
       el.className = 'dt';
@@ -269,7 +285,7 @@ function makeDOM(root) {
     },
     image(t, img) {
       img.alt = ''; img.draggable = false;
-      if (IM[t.k].ref) img.dataset.ref = '';
+      if (t.img && t.img.ref) img.dataset.ref = '';
       t.el.prepend(img); t.texReady = true;
       if (RM) t.loaded = 1; else gsap.to(t, { loaded: 1, duration: 0.9 });
     },
@@ -325,10 +341,14 @@ function loadTiles() {
   tilesStarted = true;
   const order = [...TILES].sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy));
   const viaBitmap = BITMAPS && R.kind === 'gl';
+  // the logo tile's lettering waits for the site's font (but not for long)
+  const font = `500 20px ${getComputedStyle(document.body).fontFamily}`;
+  const fontIn = Promise.race([document.fonts ? document.fonts.load(font) : null, new Promise((r) => setTimeout(r, 1800))]).catch(() => {});
   let i = 0;
   const next = () => {
     const t = order[i++];
     if (!t) return;
+    if (t.logo) { fontIn.then(() => { R.image(t, drawLogo(t)); loadedCount++; }); next(); return; }
     const src = texSrc(t.k);
     (viaBitmap ? bitmapOf(src).catch(() => imageOf(src)) : imageOf(src)).then((img) => {
       R.image(t, img); loadedCount++;
@@ -336,6 +356,32 @@ function loadTiles() {
     }).catch(() => {}).finally(next);
   };
   for (let c = 0; c < 6; c++) next();
+}
+// The studio's logo as a tile on the wall (`logo` in wall.yaml): the mark with the name beneath.
+// Drawn here rather than kept as an image so that it follows the light / dark switch.
+const MARK_D = $('.brand path').getAttribute('d');
+function drawLogo(t) {
+  const cv = t.cv || (t.cv = document.createElement('canvas'));
+  const w = 800, h = Math.round(w / SHAPE[t.sh][0]);
+  cv.width = w; cv.height = h;
+  const g = cv.getContext('2d');
+  g.fillStyle = cssVar('--tile-bg'); g.fillRect(0, 0, w, h);
+  // the mark: about a third of the tile's height, a little above the middle
+  const mh = h * 0.3, s = mh / VB[3], cy = h * 0.45;
+  g.save();
+  g.translate(w / 2 - (VB[2] * s) / 2 - VB[0] * s, cy - mh / 2 - VB[1] * s);
+  g.scale(s, s);
+  g.fillStyle = cssVar('--tile-fg');
+  g.fill(new Path2D(MARK_D));
+  g.restore();
+  // the name in spaced capitals, set letter by letter (canvas letter-spacing is not everywhere yet)
+  const fs = h * 0.026, sp = fs * 0.34, ch = [...DATA.name.toUpperCase()];
+  g.font = `500 ${fs}px ${getComputedStyle(document.body).fontFamily}`;
+  g.fillStyle = cssVar('--tile-fg-2');
+  const ws = ch.map((c) => g.measureText(c).width);
+  let x = w / 2 - (ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1)) / 2;
+  ch.forEach((c, i) => { g.fillText(c, x, cy + mh / 2 + h * 0.115); x += ws[i] + sp; });
+  return cv;
 }
 function startVideo(t) {
   const v = document.createElement('video');
@@ -480,10 +526,13 @@ function hitTest(x, y) {
 }
 function updateHover() {
   let h = null;
-  if (FINE && pointer.in && mode === 'wall' && !drag.moved && !busy && Math.hypot(cam.vx, cam.vy) < 1400 * G.s) h = hitTest(pointer.x, pointer.y);
+  if (FINE && pointer.in && mode === 'wall' && !drag.moved && !busy && !titleBack && Math.hypot(cam.vx, cam.vy) < 1400 * G.s) h = hitTest(pointer.x, pointer.y);
   if (h !== hovered) {
     hovered = h;
-    if (h) {
+    if (h && h.logo) {
+      cursor.name.textContent = DATA.name;
+      cursor.act.textContent = 'About';
+    } else if (h) {
       const p = PBY[h.img.p];
       cursor.name.textContent = p ? p.name : '';
       cursor.act.textContent = 'View';
@@ -533,7 +582,8 @@ const titleLines = splitChars(title);
 const titleChars = titleLines.flat();
 const initials = titleLines.map((l) => l[0]).slice(0, 2);   // the V and the A
 initials.forEach((c) => c.classList.add('ini'));
-let titleIntro = null;   // the letters rising in; the logo waits for them
+let titleIntro = null;   // the letters rising in (or flying back); the logo waits for them
+let titleBack = false;   // the title is flying back out of the corner (tiles show no hover meanwhile)
 
 // Where each letter sits in the logo, in the logo's own units (its viewBox is 35 43 509 662):
 // the V is the back stroke with the left side of the A; the A is the peak, the seat (its bar) and the legs.
@@ -568,13 +618,14 @@ function shrinkTitle(instant) {
   if (VW < 700) $('.foot').classList.add('is-hidden');
   dimTo(wallDim(), 1.6);
   if (RM || instant || initials.length < 2 || !measureCtx) { logoDone(); return; }
-  gsap.to('.hero-line span', { opacity: 0, y: -10, duration: 0.6, ease: 'power2.in' });
-  // scrolled while the letters were still rising: let them finish quickly first
+  gsap.to('.hero-line span', { opacity: 0, y: -10, duration: 0.6, ease: 'power2.in', overwrite: 'auto' });
+  // scrolled while the letters were still rising (or flying back): let them finish quickly first
   if (titleIntro && titleIntro.progress() < 1) titleIntro.timeScale(4).eventCallback('onComplete', formLogo);
   else formLogo();
 }
-function formLogo() {
-  const rest = titleChars.filter((c) => !initials.includes(c));
+// The way between the title and the corner: at u = 0 the V and the A stand in their words, at u = 1
+// a copy of the logo sits exactly over the one in the corner. render() draws any point on the way.
+function logoFlight() {
   gsap.killTweensOf(titleChars);
   gsap.set(titleChars, { clearProps: 'transform' });
   title.classList.add('is-forming');
@@ -589,7 +640,8 @@ function formLogo() {
   const ux = Math.min(ink[0].x, ink[1].x), uy = Math.min(ink[0].y, ink[1].y);
   M0.x = (ux + Math.max(ink[0].x + ink[0].w, ink[1].x + ink[1].w)) / 2 - M0.w / 2;
   M0.y = (uy + Math.max(ink[0].y + ink[0].h, ink[1].y + ink[1].h)) / 2 - M0.h / 2;
-  // a copy of the logo, drawn at the starting size (so it stays sharp as it shrinks) and faded in on the way
+  // a copy of the logo, drawn at the starting size (so it stays sharp as it shrinks), which takes over
+  // from the letters on the way
   const fly = mark.cloneNode(true);
   fly.setAttribute('class', 'logo-fly');
   Object.assign(fly.style, { width: M0.w + 'px', height: M0.h + 'px' });
@@ -609,21 +661,59 @@ function formLogo() {
     fly.style.transform = `translate(${M.x.toFixed(2)}px, ${M.y.toFixed(2)}px) scale(${k.toFixed(5)})`;
     fly.style.opacity = smooth(0.42, 0.8, u).toFixed(3);
   };
-  const css = getComputedStyle(document.documentElement);
+  return { st, render, fly };
+}
+function formLogo() {
+  const rest = titleChars.filter((c) => !initials.includes(c));
+  const { st, render, fly } = logoFlight();
   gsap.timeline({ onComplete: () => { logoDone(); fly.remove(); } })
     // the V and the A light up while the rest of the letters dim, then fall away
-    .to(initials, { color: css.getPropertyValue('--accent').trim(), duration: 0.45, ease: 'power2.out' }, 0)
+    .to(initials, { color: cssVar('--accent'), duration: 0.45, ease: 'power2.out' }, 0)
     .to(rest, { opacity: 0.14, duration: 0.45, ease: 'power2.out' }, 0)
     .to(rest, { opacity: 0, yPercent: 24, duration: 0.55, ease: 'power2.in', stagger: 0.016 }, 0.4)
     // the two fly to the corner, closing into the logo's shape, and become it
     .to(st, { u: 1, duration: 1.7, ease: 'power3.inOut', onUpdate: render }, 0.55)
-    .to(initials, { color: css.getPropertyValue('--fg').trim(), duration: 0.6, ease: 'none' }, 1.15);
+    .to(initials, { color: cssVar('--fg'), duration: 0.6, ease: 'none' }, 1.15);
+}
+// On the wall, clicking the logo plays the opening back: the logo flies out of the corner and parts
+// into the V and the A, which settle into "Vistaraa / Architects" as the other letters return.
+// The next scroll forms the logo again.
+function showTitle() {
+  if (titleUp || mode !== 'wall' || panel || busy || brand.classList.contains('is-wait')) return;
+  titleUp = true;
+  hero.classList.remove('is-gone');
+  $('.hint').classList.remove('is-gone');
+  $('.foot').classList.remove('is-hidden');
+  dimTo(wallDim(), 1.4);
+  const line = $$('.hero-line span');
+  if (RM || initials.length < 2 || !measureCtx) {
+    gsap.set([...titleChars, ...line], { clearProps: 'all' });
+    hero.classList.remove('is-done'); brand.classList.add('is-wait');
+    return;
+  }
+  const rest = titleChars.filter((c) => !initials.includes(c));
+  const { st, render, fly } = logoFlight();
+  st.u = 1; render();
+  brand.classList.add('is-wait');
+  gsap.set(rest, { opacity: 0 });
+  gsap.set(initials, { color: cssVar('--fg') });
+  hero.classList.remove('is-done');
+  titleBack = true;
+  titleIntro = gsap.timeline()
+    // the logo leaves the corner and parts into the V and the A, which light up on the way
+    .to(st, { u: 0, duration: 1.6, ease: 'power3.inOut', onUpdate: render }, 0)
+    .to(initials, { color: cssVar('--accent'), duration: 0.5, ease: 'power2.out' }, 0.45)
+    // the other letters come back around them
+    .fromTo(rest, { opacity: 0, yPercent: 24 }, { opacity: 1, yPercent: 0, duration: 0.9, ease: 'power3.out', stagger: 0.018 }, 1.25)
+    .to(initials, { color: cssVar('--fg'), duration: 0.8, ease: 'power1.inOut' }, 1.75)
+    .fromTo(line, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1, ease: 'power3.out' }, 1.6)
+    .call(() => { titleBack = false; fly.remove(); title.classList.remove('is-forming'); gsap.set(titleChars, { clearProps: 'transform,opacity,color' }); });
 }
 
 /* =========================================================================
    Flyer: FLIP of an image between a wall tile / thumbnail and full-bleed
    ========================================================================= */
-const GRADE_ON = 'saturate(0.8) contrast(1.05) brightness(0.88)';
+const gradeOn = () => cssVar('--grade');   // the wall's colour grade for this theme
 const GRADE_OFF = 'saturate(1) contrast(1) brightness(1)';
 function makeFlyer(img, rect, opt = {}) {
   const el = document.createElement('div');
@@ -733,6 +823,7 @@ function showProject() {
 }
 async function openFromTile(t) {
   if (busy || mode !== 'wall') return;
+  if (t.logo) { openPanel('about'); return; }
   const p = PBY[t.img.p]; if (!p) return;
   busy = true; shrinkTitle();
   route(p.url, p.name);
@@ -747,7 +838,7 @@ async function openFromTile(t) {
     fl = makeFlyer(t.img, rect, { focus: t.focus });
   }
   const inner = innerFrom(t, rect);
-  gsap.set(fl.media, { ...inner, filter: t.hov > 0.5 ? GRADE_OFF : GRADE_ON });
+  gsap.set(fl.media, { ...inner, filter: t.hov > 0.5 ? GRADE_OFF : gradeOn() });
   t.hide = 0;
   renderProject(p, t.k);
   prevMode = 'wall'; origin = t; mode = 'project';
@@ -837,7 +928,7 @@ function closeProject() {
   const inner = innerFrom(t, rect);
   gsap.timeline({ defaults: { duration: 1.05, ease: 'expo.inOut' } })
     .to(fl.el, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }, 0)
-    .to(fl.media, { ...inner, filter: GRADE_ON }, 0)
+    .to(fl.media, { ...inner, filter: gradeOn() }, 0)
     .add(() => {
       t.hide = 1;
       requestAnimationFrame(() => { fl.el.remove(); });
@@ -1226,7 +1317,12 @@ $$('[data-go]').forEach((b) => b.addEventListener('click', (e) => {
   if (go === 'work') { closePanel(); if (mode === 'menu') closeMenu(); return; }
   openPanel(go);
 }));
-$('.brand').addEventListener('click', (e) => { e.preventDefault(); closePanel(); if (mode === 'menu') closeMenu(); });
+$('.brand').addEventListener('click', (e) => {
+  e.preventDefault();
+  if (panel) closePanel();
+  if (mode === 'menu') closeMenu();
+  showTitle();
+});
 $('.ct-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.currentTarget;
@@ -1303,6 +1399,35 @@ function fromURL() {
 }
 
 /* =========================================================================
+   Light / dark: the half-filled circle in the top bar. Dark is the default;
+   the choice is kept in this browser, and the script in Base.astro's <head>
+   applies it before the page paints.
+   ========================================================================= */
+const themeBtn = $('.theme');
+const isLight = () => html.dataset.theme === 'light';
+function themeUI() {
+  const light = isLight();
+  themeBtn.setAttribute('aria-pressed', String(light));
+  themeBtn.title = light ? 'Dark mode' : 'Light mode';
+  $('meta[name="theme-color"]').content = cssVar('--bg');
+  $('meta[name="color-scheme"]').content = light ? 'light' : 'dark';
+}
+function setTheme(light) {
+  const apply = () => {
+    if (light) html.dataset.theme = 'light'; else delete html.dataset.theme;
+    try { localStorage.setItem('vistaraa-theme', light ? 'light' : 'dark'); } catch (_) {}
+    themeUI();
+    for (const t of TILES) if (t.cv) drawLogo(t);
+    if (R) R.colors();
+  };
+  // a soft crossfade where the browser supports it; elsewhere the colours simply change
+  if (document.startViewTransition && !RM) document.startViewTransition(apply);
+  else apply();
+}
+themeBtn.addEventListener('click', () => setTheme(!isLight()));
+themeUI();
+
+/* =========================================================================
    Boot: preloader → fly-out
    ========================================================================= */
 const loader = $('.loader');
@@ -1323,6 +1448,7 @@ async function boot() {
   if (!Q.has('dom')) R = makeGL($('.gl'));
   if (!R) R = makeDOM($('.dom-wall'));
   for (const t of TILES) R.add(t);
+  R.colors();
   if (R.warm) R.warm();
   // arriving on a project page: let its own images load first
   if (START_KIND === 'project') setTimeout(loadTiles, 2000); else loadTiles();
@@ -1341,7 +1467,8 @@ async function boot() {
     cursor.el.style.display = 'none';
     $('.hint').lastChild.textContent = 'Swipe to explore';
   }
-  pjScroll.addEventListener('scroll', () => pj.classList.toggle('past', pjScroll.scrollTop > VH * 0.8), { passive: true });
+  // the photo at the top has gone under the bar: the bar's shade and colours change (see .pj-top)
+  pjScroll.addEventListener('scroll', () => pj.classList.toggle('past', pjScroll.scrollTop > VH - 70), { passive: true });
   addEventListener('resize', onResize);
   addEventListener('popstate', fromURL);
   document.addEventListener('visibilitychange', () => { if (document.hidden) TILES.forEach((t) => t.video && t.video.pause()); });

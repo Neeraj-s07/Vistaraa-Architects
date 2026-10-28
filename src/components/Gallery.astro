@@ -58,8 +58,9 @@ const shown = { style: 'opacity: 1' };
 )}
 
 <header class:list={['bar', { 'is-hidden': start }]}>
-  {/* on the home page the logo appears once the title's V and A have flown into this corner */}
-  <a class:list={['brand', { 'is-wait': home }]} href={at('/')} aria-label={`${SITE.name}, back to the wall`}>
+  {/* on the home page the logo appears once the title's V and A have flown into this corner;
+      clicking it there brings the title back */}
+  <a class:list={['brand', { 'is-wait': home }]} href={at('/')} aria-label={`${SITE.name}, home`}>
     <svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg>
   </a>
   <nav class="nav" aria-label="Primary">
@@ -67,7 +68,10 @@ const shown = { style: 'opacity: 1' };
     <a href={at('/about/')} data-go="about" aria-current={startPanel === 'about' ? 'page' : undefined}>About</a>
     <a href={at('/contact/')} data-go="contact" aria-current={startPanel === 'contact' ? 'page' : undefined}>Contact</a>
   </nav>
-  <button type="button" class="itog" aria-expanded="false" aria-controls="menu"><span class="itog-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="itog-l"><span>Menu</span><span aria-hidden="true">Close</span></span></button>
+  <div class="bar-end">
+    <button type="button" class="theme" aria-label="Light mode" aria-pressed="false" title="Light mode"><span class="theme-i" aria-hidden="true"></span></button>
+    <button type="button" class="itog" aria-expanded="false" aria-controls="menu"><span class="itog-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="itog-l"><span>Menu</span><span aria-hidden="true">Close</span></span></button>
+  </div>
 </header>
 
 <main id="main">
