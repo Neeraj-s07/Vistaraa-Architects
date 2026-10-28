@@ -9,6 +9,7 @@ import { Image } from 'astro:assets';
 import '../styles/gallery.css';
 import { siteData, inline, type Img, type Project } from '../lib/data';
 import { SITE, STUDIO, CONTACT, CAREERS } from '../site';
+import { at } from '../lib/url';
 
 interface Props { project?: string; panel?: 'about' | 'contact' | 'careers' }
 const { project: startId, panel: startPanel } = Astro.props;
@@ -58,13 +59,13 @@ const shown = { style: 'opacity: 1' };
 
 <header class:list={['bar', { 'is-hidden': start }]}>
   {/* on the home page the logo appears once the title's V and A have flown into this corner */}
-  <a class:list={['brand', { 'is-wait': home }]} href="/" aria-label={`${SITE.name}, back to the wall`}>
+  <a class:list={['brand', { 'is-wait': home }]} href={at('/')} aria-label={`${SITE.name}, back to the wall`}>
     <svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg>
   </a>
   <nav class="nav" aria-label="Primary">
-    <a href="/" data-go="work" aria-current={!startPanel ? 'page' : undefined}>Work</a>
-    <a href="/about/" data-go="about" aria-current={startPanel === 'about' ? 'page' : undefined}>About</a>
-    <a href="/contact/" data-go="contact" aria-current={startPanel === 'contact' ? 'page' : undefined}>Contact</a>
+    <a href={at('/')} data-go="work" aria-current={!startPanel ? 'page' : undefined}>Work</a>
+    <a href={at('/about/')} data-go="about" aria-current={startPanel === 'about' ? 'page' : undefined}>About</a>
+    <a href={at('/contact/')} data-go="contact" aria-current={startPanel === 'contact' ? 'page' : undefined}>Contact</a>
   </nav>
   <button type="button" class="itog" aria-expanded="false" aria-controls="menu"><span class="itog-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="itog-l"><span>Menu</span><span aria-hidden="true">Close</span></span></button>
 </header>
@@ -98,7 +99,7 @@ const shown = { style: 'opacity: 1' };
   <nav class="menu-panel" aria-label="Menu">
     <div class="menu-scroll">
       <ul class="menu-list">
-        <li><a class="menu-a" href="/about/" data-go="about"><span>About</span></a></li>
+        <li><a class="menu-a" href={at('/about/')} data-go="about"><span>About</span></a></li>
         <li>
           <button type="button" class="menu-a menu-pbtn" aria-expanded="false" aria-controls="menu-projects"><span>Projects</span><i class="menu-pm" aria-hidden="true"></i></button>
           <div class="menu-projects" id="menu-projects" hidden>
@@ -118,8 +119,8 @@ const shown = { style: 'opacity: 1' };
             ))}
           </div>
         </li>
-        <li><a class="menu-a" href="/contact/" data-go="contact"><span>Contact</span></a></li>
-        <li><a class="menu-a" href="/careers/" data-go="careers"><span>Careers</span></a></li>
+        <li><a class="menu-a" href={at('/contact/')} data-go="contact"><span>Contact</span></a></li>
+        <li><a class="menu-a" href={at('/careers/')} data-go="careers"><span>Careers</span></a></li>
       </ul>
       <div class="menu-foot">
         <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
@@ -182,7 +183,7 @@ const shown = { style: 'opacity: 1' };
   </div>
   <div class="pj-shade" aria-hidden="true"></div>
   <div class="pj-top">
-    <a class="pj-mark" href="/" aria-label="Back to the wall"><svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg></a>
+    <a class="pj-mark" href={at('/')} aria-label="Back to the wall"><svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg></a>
     <button type="button" class="btn-close pj-close">Close <i aria-hidden="true"></i></button>
   </div>
 </div>
@@ -242,7 +243,7 @@ const shown = { style: 'opacity: 1' };
         </ul>
       </section>
 
-      <a class="cta" href="/contact/" data-go="contact" data-rise>Start a <em>project</em> <span aria-hidden="true">→</span></a>
+      <a class="cta" href={at('/contact/')} data-go="contact" data-rise>Start a <em>project</em> <span aria-hidden="true">→</span></a>
       <p class="panel-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
     </div>
   </div>

@@ -1,6 +1,7 @@
 ---
 import { Font } from 'astro:assets';
 import { SITE } from '../site';
+import { at } from '../lib/url';
 
 interface Props {
   title: string;
@@ -10,7 +11,7 @@ interface Props {
   /** Tells the wall script which view to open first: "", "project:<id>" or "panel:<id>". */
   start?: string;
 }
-const { title, description = SITE.description, image = '/og/home.jpg', start = '' } = Astro.props;
+const { title, description = SITE.description, image = at('/og/home.jpg'), start = '' } = Astro.props;
 const canonical = new URL(Astro.url.pathname, SITE.url).href;
 ---
 <!doctype html>
@@ -24,8 +25,8 @@ const canonical = new URL(Astro.url.pathname, SITE.url).href;
 <link rel="canonical" href={canonical}>
 <meta name="theme-color" content="#121211">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href={at('/favicon.svg')} type="image/svg+xml">
+<link rel="apple-touch-icon" href={at('/apple-touch-icon.png')}>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content={SITE.name}>
 <meta property="og:title" content={title}>

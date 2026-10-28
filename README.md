@@ -102,6 +102,12 @@ In `src/site.ts`:
 
 ## Publishing
 
+**GitHub Pages (now):** every push to `main` builds the site and publishes it at
+https://neeraj-s07.github.io/Vistaraa-Architects/ (`.github/workflows/pages.yml`; the repository's
+Settings → Pages → Source must be "GitHub Actions"). Progress shows in the repository's
+**Actions** tab. The site works from that sub-folder because every link goes through `at()` in
+`src/lib/url.ts`; keep using it for new links.
+
 Any static host works. Netlify or Cloudflare Pages are the best fit: they read
 `public/_headers`, which lets browsers keep images instead of downloading them again on every
 visit. Connect the site's Git repository (on Netlify, `netlify.toml` already holds these):

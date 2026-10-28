@@ -2,12 +2,13 @@
 import Base from '../layouts/Base.astro';
 import '../styles/gallery.css';
 import { SITE } from '../site';
+import { at } from '../lib/url';
 ---
 <Base title={`Page not found — ${SITE.name}`}>
   <main class="nf">
     <p class="lbl">404</p>
     <h1 class="big">This page has <em>moved</em> on.</h1>
-    <a class="cta" href="/">Back to the work <span aria-hidden="true">→</span></a>
+    <a class="cta" href={at('/')}>Back to the work <span aria-hidden="true">→</span></a>
   </main>
 </Base>
 <style>

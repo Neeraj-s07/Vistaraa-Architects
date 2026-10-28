@@ -8,6 +8,7 @@ import type { ImageMetadata } from 'astro';
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import type { WALL_FRAMES } from '../content.config';
+import { at } from './url';
 
 const DIR = '/src/content/projects/';
 const IMAGES = import.meta.glob<ImageMetadata>(
@@ -122,12 +123,12 @@ async function build() {
       id, no: String(i + 1).padStart(2, '0'), name: d.title, typ: d.type, cat: d.category?.trim() || 'Other',
       place: d.location ?? '', thumb: thumb.src,
       line: inline(d.line), copy: e.rendered?.html ?? '', facts: Object.entries(d.facts ?? {}),
-      hero, seq, ...(d.reference ? { placeholder: 1 as const } : {}), url: `/work/${id}/`,
+      hero, seq, ...(d.reference ? { placeholder: 1 as const } : {}), url: at(`/work/${id}/`),
     });
   }
 
   const wall = buildWall(sources, projects);
-  for (const k of wall.tiles) images[k].wall = `/wall/${k}.webp`;
+  for (const k of wall.tiles) images[k].wall = at(`/wall/${k}.webp`);
   return { projects, images, sources, wall: wall.layout, wallTiles: wall.tiles };
 }
 

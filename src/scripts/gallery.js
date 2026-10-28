@@ -796,7 +796,7 @@ function openProject(p, fromEl) {
 function closeProject() {
   if (busy || mode !== 'project') return;
   busy = true;
-  route('/');
+  route(ROOT + '/');
   if (!tilesStarted) loadTiles();
   wallVisible(true);
   $('.bar').classList.remove('is-hidden');
@@ -1185,7 +1185,7 @@ function openPanel(id, quiet) {
   else panelOpener = mode === 'menu' ? itog : document.activeElement;
   if (mode === 'menu') closeMenu(true);
   panel = id; setNav(id);
-  route(`/${id}/`, PANELS[id]);
+  route(ROOT + `/${id}/`, PANELS[id]);
   shrinkTitle();
   const el = $('#' + id);
   el.classList.add('on');
@@ -1209,7 +1209,7 @@ function closePanel() {
   if (!panel) return;
   const el = $('#' + panel), id = panel;
   panel = null; setNav('work');
-  route('/');
+  route(ROOT + '/');
   if (lenisP[id]) lenisP[id].stop();
   $('#main').inert = false; $('.foot').inert = false;
   if (VW >= 700 || titleUp) $('.foot').classList.remove('is-hidden');
@@ -1271,7 +1271,9 @@ $$('.wall-a11y a').forEach((a) => a.addEventListener('click', (e) => {
 
 /* =========================================================================
    Addresses: /, /work/<project>/, /about/, /contact/, /careers/
+   (under the folder the site is published in, if any: see src/lib/url.ts)
    ========================================================================= */
+const ROOT = import.meta.env.BASE_URL.replace(/\/$/, '');
 let popping = false;
 const norm = (path) => path.replace(/\/?$/, '/');
 function route(path, name) {
@@ -1281,7 +1283,8 @@ function route(path, name) {
 }
 function fromURL() {
   if (busy || mode === 'intro') { setTimeout(fromURL, 150); return; }
-  const m = norm(location.pathname).match(/^\/(?:work\/([^/]+)|(about|contact|careers))\/$/);
+  const here = norm(location.pathname);
+  const m = (here.startsWith(ROOT + '/') ? here.slice(ROOT.length) : here).match(/^\/(?:work\/([^/]+)|(about|contact|careers))\/$/);
   const p = m && m[1] ? PBY[m[1]] : null, id = m && m[2];
   popping = true;
   try {

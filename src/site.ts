@@ -15,10 +15,11 @@ export const SITE = {
   wordmark: ['Vistaraa', 'Architects'],
   /**
    * The site's main address (no trailing slash). The bare domain should redirect here.
-   * When Netlify builds the site it uses the address it serves it from instead (its URL setting),
-   * so a shared preview link shows its picture; once the domain is connected there, the two match.
+   * When GitHub Pages or Netlify builds the site it uses the address it serves it from instead
+   * (SITE_URL, set by the GitHub workflow, or Netlify's URL), so a shared preview link shows its
+   * picture; once the domain is connected there, the two match.
    */
-  url: (process.env.NETLIFY && process.env.URL) || 'https://www.vistaraaarchitects.com',
+  url: process.env.SITE_URL || (process.env.NETLIFY && process.env.URL) || 'https://www.vistaraaarchitects.com',
   /** Keep false until launch: search engines are asked not to index the site while it is false. */
   live: false,
   /** The line under the big title on the home page. */

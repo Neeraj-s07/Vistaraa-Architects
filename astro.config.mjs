@@ -3,6 +3,9 @@ import { SITE } from './src/site.ts';
 
 export default defineConfig({
   site: SITE.url,
+  // The folder the site is published under: none normally, the repository's name on GitHub Pages
+  // (the publishing workflow sets BASE_PATH). Links in the code go through `at()` in src/lib/url.ts.
+  base: process.env.BASE_PATH || '/',
   devToolbar: { enabled: false },
   // The wall script bundles three.js (about 155 kB gzipped), which is expected.
   vite: { build: { chunkSizeWarningLimit: 700 } },
