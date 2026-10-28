@@ -19,6 +19,13 @@ npm run dev      # then open http://localhost:4321 — the page updates as you s
 ```
 
 `npm run build` makes the finished site in `dist/`, and `npm run preview` shows that build.
+
+**Without this computer:** on GitHub, open the repository, click the green **Code** button, then
+**Codespaces → Create codespace on main**. GitHub builds the site (5–10 minutes the first
+time) and opens it in a new tab; if the tab is blocked, open the **Ports** tab and click the globe
+next to "Website". Only you can open that address. To see newer changes, type
+`git pull && npm run build` in the codespace's terminal, then refresh. A codespace stops by itself
+after 30 minutes unused; reopen it from the same **Code → Codespaces** menu.
 `npm run check` looks for mistakes in the code, and `npm run images` prepares new renders (below).
 
 ## Where things live

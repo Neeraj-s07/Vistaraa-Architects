@@ -1,0 +1,13 @@
+// Used by GitHub Codespaces (the green "Code" button → Codespaces → Create codespace on main).
+// It installs everything, builds the site once, then serves it and opens it in a new tab.
+// The address only opens for you while you are signed in to GitHub (the port is private).
+{
+  "name": "Vistaraa Architects website",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "postCreateCommand": "npm ci && npm run build",
+  "postAttachCommand": "npm run preview -- --host 0.0.0.0 --port 4321 --allowed-hosts .app.github.dev",
+  "forwardPorts": [4321],
+  "portsAttributes": {
+    "4321": { "label": "Website", "onAutoForward": "openBrowser" }
+  }
+}
