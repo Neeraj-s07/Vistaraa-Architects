@@ -1,0 +1,8 @@
+# Netlify reads this when the GitHub repository is connected, so nothing needs filling in there.
+# Every push to the main branch rebuilds and publishes the site.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"

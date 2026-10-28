@@ -97,7 +97,7 @@ In `src/site.ts`:
 
 Any static host works. Netlify or Cloudflare Pages are the best fit: they read
 `public/_headers`, which lets browsers keep images instead of downloading them again on every
-visit. Connect the site's Git repository and use:
+visit. Connect the site's Git repository (on Netlify, `netlify.toml` already holds these):
 
 - Build command: `npm run build`
 - Output folder: `dist`
