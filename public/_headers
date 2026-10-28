@@ -1,0 +1,13 @@
+# Caching rules, read by Netlify and Cloudflare Pages.
+# Files in /_astro/ have a fingerprint in their name, so a changed file gets a new name
+# and browsers can keep these for a year. Wall crops and share images keep their names,
+# so they are cached for a day.
+
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/wall/*
+  Cache-Control: public, max-age=86400
+
+/og/*
+  Cache-Control: public, max-age=86400

@@ -1,0 +1,72 @@
+# The wall on the home page: six rows that repeat endlessly in every direction.
+#
+# Each tile is "project-folder/image-name" (no extension). Its frame shape comes from
+# the `wall:` line on that image in the project's index.md.
+# Any image marked `wall:` that is NOT listed here is added automatically to the
+# shortest row, so a new project shows up without editing this file.
+# Tiles that no longer exist (e.g. a deleted project) are skipped.
+#
+# size: large | small   row height
+# shift: pixels         slides a row sideways so columns don't line up
+
+start: kings-avenue/clubhouse-entrance-night       # the tile centred on first load
+
+rows:
+  - size: large
+    shift: 0
+    tiles:
+      - kings-avenue/clubhouse-entrance-night
+      - aryan-icon/tower-01
+      - nirajs-bungalow/living-room-1
+      - kings-avenue-clubhouse/aroma-room-1
+      - office-01/view-1
+      - aryan-icon/foyer-03
+      - kings-avenue/clubhouse-pool
+  - size: small
+    shift: 140
+    tiles:
+      - aryan-icon/tower-night
+      - kings-avenue-clubhouse/cafe-1
+      - kings-avenue/estate-aerial
+      - nirajs-bungalow/home-theatre-1
+      - office-02/view-2
+      - kings-avenue-clubhouse/bar-lounge-2
+  - size: large
+    shift: -260
+    tiles:
+      - nirajs-bungalow/bedroom-2-view-1
+      - kings-avenue/internal-street
+      - aryan-icon/tower-03
+      - kings-avenue-clubhouse/reception-1
+      - office-03/view-7
+      - nirajs-bungalow/home-office
+      - kings-avenue/clubhouse-gate-night
+  - size: small
+    shift: 380
+    tiles:
+      - kings-avenue-clubhouse/indoor-games-1
+      - aryan-icon/foyer-08
+      - kings-avenue/bungalow-aerial-night
+      - nirajs-bungalow/bedroom-1-view-1
+      - aryan-icon/foyer-14
+      - office-02/view-7
+  - size: large
+    shift: 90
+    tiles:
+      - kings-avenue/bungalow-dusk-front
+      - kings-avenue-clubhouse/toddler-room-1
+      - aryan-icon/tower-11
+      - kings-avenue/bungalow-aerial
+      - office-01/view-7
+      - kings-avenue-clubhouse/banquet-1
+      - nirajs-bungalow/dining-2
+  - size: small
+    shift: -420
+    tiles:
+      - aryan-icon/tower-02
+      - nirajs-bungalow/bedroom-4-view-1
+      - kings-avenue-clubhouse/bar-lounge-1
+      - kings-avenue/clubhouse-garden-night
+      - office-03/view-2
+      - aryan-icon/foyer-05
+      - nirajs-bungalow/kitchen-1

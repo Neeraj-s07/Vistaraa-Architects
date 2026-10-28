@@ -1,0 +1,309 @@
+---
+/**
+ * The whole site: the wall, the menu, the project view and the About / Contact / Careers panels.
+ * Every page renders this; `project` or `panel` says which view is open on arrival
+ * (that view is also rendered here as HTML, so it reads without JavaScript and for search engines).
+ */
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+import '../styles/gallery.css';
+import { siteData, inline, type Img, type Project } from '../lib/data';
+import { SITE, STUDIO, CONTACT, CAREERS } from '../site';
+
+interface Props { project?: string; panel?: 'about' | 'contact' | 'careers' }
+const { project: startId, panel: startPanel } = Astro.props;
+const { projects, images, wall } = await siteData();
+const start = startId ? projects.find((p) => p.id === startId) : undefined;
+const home = !start && !startPanel;
+
+const PORTRAITS = import.meta.glob<ImageMetadata>('/src/assets/studio/*', { eager: true, import: 'default' });
+const portrait = (f: string) => PORTRAITS['/src/assets/studio/' + f];
+
+const data = JSON.stringify({
+  projects, images, wall,
+  name: SITE.name, home: `${SITE.name} — ${SITE.tagline}`, form: CONTACT.formEndpoint,
+}).replace(/</g, '\\u003c');
+
+const MARK = 'M35 43h49l89 437c5 20 17 30 41 30h280l10 41H146zM180 549h63l-37 156h-64zM441 549h62l41 156h-62zM322 48h53l91 359h-59l-62-274-64 274h-55z';
+const year = new Date().getFullYear();
+const tel = (s: string) => 'tel:' + s.replace(/[^+\d]/g, '');
+const srcset = (im: Img) => `${im.mid} ${im.mw}w, ${im.lg} ${im.lw}w, ${im.full} ${im.fw}w`;
+// project images: two columns, one below 861px (see .pj-grid)
+const SIZES = '(max-width: 860px) 94vw, 48vw';
+// the menu lists projects under their category, categories in the order they first appear
+const cats: { name: string; projects: Project[] }[] = [];
+for (const p of projects) {
+  let c = cats.find((x) => x.name === p.cat);
+  if (!c) cats.push((c = { name: p.cat, projects: [] }));
+  c.projects.push(p);
+}
+
+const WallTitle = home ? 'h1' : 'p';
+const PjTitle = start ? 'h1' : 'h2';
+const AboutH = startPanel === 'about' ? 'h1' : 'h2';
+const ContactH = startPanel === 'contact' ? 'h1' : 'h2';
+const CareersH = startPanel === 'careers' ? 'h1' : 'h2';
+const shown = { style: 'opacity: 1' };
+---
+<a class="skip" href="#wall-projects">Skip to the projects</a>
+
+{home && (
+  <div class="loader" aria-hidden="true">
+    <div class="loader-in">
+      <svg viewBox="35 43 509 662"><path class="mk-fill" d={MARK} /><path class="mk-line" d={MARK} /></svg>
+      <span class="loader-bar"><i></i></span>
+    </div>
+  </div>
+)}
+
+<header class:list={['bar', { 'is-hidden': start }]}>
+  {/* on the home page the logo appears once the title's V and A have flown into this corner */}
+  <a class:list={['brand', { 'is-wait': home }]} href="/" aria-label={`${SITE.name}, back to the wall`}>
+    <svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg>
+  </a>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" data-go="work" aria-current={!startPanel ? 'page' : undefined}>Work</a>
+    <a href="/about/" data-go="about" aria-current={startPanel === 'about' ? 'page' : undefined}>About</a>
+    <a href="/contact/" data-go="contact" aria-current={startPanel === 'contact' ? 'page' : undefined}>Contact</a>
+  </nav>
+  <button type="button" class="itog" aria-expanded="false" aria-controls="menu"><span class="itog-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="itog-l"><span>Menu</span><span aria-hidden="true">Close</span></span></button>
+</header>
+
+<main id="main">
+  <section class="wall" aria-labelledby="title">
+    <canvas class="gl is-cursor" aria-hidden="true"></canvas>
+    <div class="dom-wall is-cursor" aria-hidden="true" hidden></div>
+    <div class="vig" aria-hidden="true"></div>
+    <div class:list={['hero', { 'is-gone is-done': !home }]}>
+      <div class="hero-in">
+        <WallTitle class="title" id="title">{SITE.wordmark.map((w) => <span class="tw" aria-hidden="true">{w}</span>)}<span class="sr-only">{SITE.name}</span></WallTitle>
+        <p class="hero-line"><span>{SITE.tagline}</span></p>
+      </div>
+    </div>
+    <nav class="kbd" aria-label="Open a project from the wall">
+      <ul class="wall-a11y" id="wall-projects">
+        {projects.map((p) => <li><a href={p.url} data-p={p.id}>Open {p.name}, {p.typ}{p.placeholder ? ' (reference)' : ''}</a></li>)}
+      </ul>
+    </nav>
+  </section>
+</main>
+
+<p class="foot">
+  <span>© {year} {SITE.name}</span>
+  <span class:list={['hint', { 'is-gone': !home }]} aria-hidden="true"><i></i>Drag to explore</span>
+</p>
+
+<div class="menu" id="menu">
+  <div class="menu-scrim" aria-hidden="true"></div>
+  <nav class="menu-panel" aria-label="Menu">
+    <div class="menu-scroll">
+      <ul class="menu-list">
+        <li><a class="menu-a" href="/about/" data-go="about"><span>About</span></a></li>
+        <li>
+          <button type="button" class="menu-a menu-pbtn" aria-expanded="false" aria-controls="menu-projects"><span>Projects</span><i class="menu-pm" aria-hidden="true"></i></button>
+          <div class="menu-projects" id="menu-projects" hidden>
+            {cats.map((c) => (
+              <section class="menu-cat" aria-label={c.name}>
+                <h3 class="menu-cat-h">{c.name}<span>{String(c.projects.length).padStart(2, '0')}</span></h3>
+                <ul>
+                  {c.projects.map((p) => (
+                    <li><a class="menu-pj" href={p.url} data-p={p.id}>
+                      <span class="menu-th"><img src={p.thumb} alt="" loading="lazy" decoding="async" /></span>
+                      <span class="menu-pn">{p.name}</span>
+                      <span class="menu-pt">{p.typ}</span>
+                    </a></li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </li>
+        <li><a class="menu-a" href="/contact/" data-go="contact"><span>Contact</span></a></li>
+        <li><a class="menu-a" href="/careers/" data-go="careers"><span>Careers</span></a></li>
+      </ul>
+      <div class="menu-foot">
+        <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+        {CONTACT.principals.map((p) => <span>{p.name} · <a href={tel(p.phone)}>{p.phone}</a></span>)}
+      </div>
+    </div>
+  </nav>
+</div>
+
+<div class:list={['pj', { 'on shade': start }]} role="dialog" aria-modal="true" aria-labelledby="pj-title" {...(start ? shown : {})}>
+  <div class="pj-scroll">
+    <div class="pj-inner">
+      <section class="pj-hero">
+        <div class="pj-hero-media">
+          {start && <img class="lo" src={images[start.hero].mid} alt={images[start.hero].alt} />}
+          {start && <img class="hi on" src={images[start.hero].full} alt="" aria-hidden="true" decoding="async" />}
+        </div>
+        <div class="pj-hero-text">
+          <div>
+            <p class="pj-kicker">{start && `${start.no} — ${start.typ}${start.placeholder ? ' · Reference' : ''}`}</p>
+            <PjTitle class="pj-title" id="pj-title">{start && start.name.split(' ').map((w, i) => <>{i > 0 && ' '}<span class="w"><span>{w}</span></span></>)}</PjTitle>
+          </div>
+          <span class="pj-scrollcue" aria-hidden="true">Scroll<i></i></span>
+        </div>
+      </section>
+      <section class="pj-intro">
+        <p class="pj-line" set:html={start ? start.line : ''} />
+        <div class="pj-body">
+          {start && !start.placeholder && <Fragment set:html={start.copy} />}
+          {start && !start.placeholder && start.facts.length > 0 && (
+            <dl class="pj-facts">{start.facts.map(([a, b]) => <div><dt>{a}</dt><dd>{b}</dd></div>)}</dl>
+          )}
+          {start?.placeholder && (
+            <>
+              <dl class="pj-facts"><div><dt>Typology</dt><dd>{start.typ}</dd></div><div><dt>Status</dt><dd>Reference</dd></div></dl>
+              <p class="pj-note">Reference project: stock photography stands in for a future {SITE.name} project.</p>
+            </>
+          )}
+        </div>
+      </section>
+      <section class="pj-seq" aria-label="Images">
+        <ol class="pj-grid">
+          {start && start.seq.map((k, i) => {
+            const im = images[k];
+            return (
+              <li><figure class="pj-fig">
+                <button type="button" class="pj-zoom" data-i={i} style={`aspect-ratio: ${im.w} / ${im.h}`} aria-label={`Enlarge image ${i + 1}${im.cap ? `: ${im.cap}` : ''}`}>
+                  {im.video
+                    ? <video src={im.video} poster={im.mid} muted loop playsinline autoplay preload={i < 4 ? 'auto' : 'metadata'} aria-label={im.alt} width={im.w} height={im.h} />
+                    : <img src={im.lg} srcset={srcset(im)} sizes={SIZES} alt={im.alt} width={im.w} height={im.h} loading={i < 4 ? 'eager' : 'lazy'} decoding="async" draggable="false" />}
+                </button>
+                <figcaption><b>{String(i + 1).padStart(2, '0')}</b><span>{im.cap}</span></figcaption>
+              </figure></li>
+            );
+          })}
+        </ol>
+      </section>
+      <p class="pj-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
+    </div>
+  </div>
+  <div class="pj-shade" aria-hidden="true"></div>
+  <div class="pj-top">
+    <a class="pj-mark" href="/" aria-label="Back to the wall"><svg viewBox="35 43 509 662" aria-hidden="true"><path d={MARK} /></svg></a>
+    <button type="button" class="btn-close pj-close">Close <i aria-hidden="true"></i></button>
+  </div>
+</div>
+
+<div class="lb" role="dialog" aria-modal="true" aria-label="Image viewer. Swipe or use the arrow keys to move between images.">
+  <div class="lb-bg"></div>
+  <div class="lb-track"></div>
+  <div class="lb-ui">
+    <div class="lb-top">
+      <p class="lb-count" aria-live="polite"></p>
+      <button type="button" class="btn-close lb-close">Close <i aria-hidden="true"></i></button>
+    </div>
+    <button type="button" class="lb-nav lb-prev" aria-label="Previous image">Prev</button>
+    <button type="button" class="lb-nav lb-next" aria-label="Next image">Next</button>
+    <p class="lb-cap"></p>
+  </div>
+</div>
+
+<div class:list={['panel', { on: startPanel === 'about' }]} id="about" role="dialog" aria-modal="true" aria-labelledby="about-title" {...(startPanel === 'about' ? shown : {})}>
+  <div class="panel-scroll">
+    <div class="panel-in">
+      <p class="lbl" data-rise>About</p>
+      <AboutH class="big" id="about-title" data-rise set:html={inline(STUDIO.heading)} />
+      <div class="st-grid">
+        <p class="st-lead" data-rise set:html={inline(STUDIO.lead)} />
+        <div class="st-nums" data-rise>
+          {STUDIO.numbers.map((n) => <div><b>{n.value}</b><span>{n.label}</span></div>)}
+        </div>
+      </div>
+
+      <section class="sec" aria-labelledby="conv-h">
+        <h3 class="lbl" id="conv-h" data-rise>{STUDIO.convictions.length === 4 ? 'Four convictions' : 'Convictions'}</h3>
+        <div class="conv">
+          {STUDIO.convictions.map((c, i) => <div data-rise><i>{['i.', 'ii.', 'iii.', 'iv.', 'v.', 'vi.'][i]}</i><h3>{c.title}</h3><p>{c.text}</p></div>)}
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="fdr-h">
+        <h3 class="lbl" id="fdr-h" data-rise>The founders</h3>
+        <div class="fdrs">
+          {STUDIO.founders.map((f) => (
+            <article class="fdr" data-rise>
+              <div class="fdr-p">{portrait(f.photo) && <Image src={portrait(f.photo)} alt={`Portrait of ${f.name}`} width={800} loading="lazy" decoding="async" />}</div>
+              {/* the founders' initials, V and A, are the letters of the logo */}
+              <h3><span class="fdr-ini">{f.name.slice(0, 1)}</span>{f.name.slice(1)}</h3>
+              <p class="role">{f.role}</p>
+              {f.quote && <blockquote>“{f.quote}”</blockquote>}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="svc-h">
+        <h3 class="lbl" id="svc-h" data-rise>Services</h3>
+        <ul class="svc" data-rise>
+          {STUDIO.services.map((s, i) => <li><span>{String(i + 1).padStart(2, '0')}</span>{s}</li>)}
+        </ul>
+      </section>
+
+      <a class="cta" href="/contact/" data-go="contact" data-rise>Start a <em>project</em> <span aria-hidden="true">→</span></a>
+      <p class="panel-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
+    </div>
+  </div>
+  <button type="button" class="btn-close panel-close">Close <i aria-hidden="true"></i></button>
+</div>
+
+<div class:list={['panel', { on: startPanel === 'contact' }]} id="contact" role="dialog" aria-modal="true" aria-labelledby="contact-title" {...(startPanel === 'contact' ? shown : {})}>
+  <div class="panel-scroll">
+    <div class="panel-in">
+      <p class="lbl" data-rise>Contact</p>
+      <ContactH class="big" id="contact-title" data-rise>Start a <em>project</em></ContactH>
+      <p class="ct-sub" data-rise>{CONTACT.sub}</p>
+      <div class="ct-grid">
+        <div class="ct-info" data-rise>
+          <div><h3>Studio</h3><p set:html={CONTACT.address.map((l) => inline(l)).join('<br>')} /></div>
+          <div><h3>Call</h3><p>{CONTACT.principals.map((p, i) => <>{i > 0 && <br />}{p.name} · <a href={tel(p.phone)}>{p.phone}</a></>)}</p></div>
+          <div><h3>Write</h3><p><a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></p></div>
+        </div>
+        <form class="ct-form" data-rise novalidate method="post" action={CONTACT.formEndpoint || undefined}>
+          <div class="fld"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required></div>
+          <div class="fld"><label for="f-mail">Email</label><input id="f-mail" name="email" type="email" autocomplete="email" required></div>
+          <div class="fld full"><label for="f-type">Project type</label>
+            <select id="f-type" name="type"><option value="">Select one</option>{CONTACT.projectTypes.map((t) => <option>{t}</option>)}</select>
+          </div>
+          <div class="fld full"><label for="f-msg">Tell us about the project</label><textarea id="f-msg" name="message" rows="3" placeholder="Site, scale, timeline…"></textarea></div>
+          <button class="send" type="submit">Send enquiry <span aria-hidden="true">→</span></button>
+          {!CONTACT.formEndpoint && <p class="form-note">The form is not connected yet, so messages are not sent.</p>}
+          <p class="form-err" role="alert" hidden>Sorry, that didn’t send. Please email <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a> instead.</p>
+        </form>
+        <div class="thanks" hidden tabindex="-1">
+          <h3>Thank you.</h3>
+          <p>{CONTACT.formEndpoint ? 'The studio will be in touch.' : 'The studio will be in touch. (The form is not connected yet, so nothing was sent.)'}</p>
+        </div>
+      </div>
+      <p class="panel-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
+    </div>
+  </div>
+  <button type="button" class="btn-close panel-close">Close <i aria-hidden="true"></i></button>
+</div>
+
+<div class:list={['panel', { on: startPanel === 'careers' }]} id="careers" role="dialog" aria-modal="true" aria-labelledby="careers-title" {...(startPanel === 'careers' ? shown : {})}>
+  <div class="panel-scroll">
+    <div class="panel-in">
+      <p class="lbl" data-rise>Careers</p>
+      <CareersH class="big" id="careers-title" data-rise set:html={inline(CAREERS.heading)} />
+      <div class="st-grid">
+        <p class="st-lead" data-rise set:html={inline(CAREERS.lead)} />
+        <div class="cr-apply" data-rise>
+          <h3>Apply</h3>
+          <a href={`mailto:${CAREERS.email}?subject=${encodeURIComponent(CAREERS.subject)}`}>{CAREERS.email}</a>
+        </div>
+      </div>
+      <p class="panel-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
+    </div>
+  </div>
+  <button type="button" class="btn-close panel-close">Close <i aria-hidden="true"></i></button>
+</div>
+
+<div class="cur" aria-hidden="true"><span class="cur-dot"></span><span class="cur-disc"><span class="cur-name"></span><span class="cur-act">View</span></span></div>
+
+<script is:inline type="application/json" id="site-data" set:html={data}></script>
+<script>
+  import '../scripts/gallery.js';
+</script>

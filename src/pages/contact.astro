@@ -1,0 +1,8 @@
+---
+import Base from '../layouts/Base.astro';
+import Gallery from '../components/Gallery.astro';
+import { SITE, CONTACT } from '../site';
+---
+<Base title={`Contact — ${SITE.name}`} description={`Start a project with ${SITE.name}. ${CONTACT.sub}`} start="panel:contact">
+  <Gallery panel="contact" />
+</Base>

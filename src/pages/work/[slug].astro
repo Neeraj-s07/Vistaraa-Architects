@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+import Gallery from '../../components/Gallery.astro';
+import { SITE } from '../../site';
+import { siteData, plain } from '../../lib/data';
+
+export async function getStaticPaths() {
+  const { projects } = await siteData();
+  return projects.map((p) => ({ params: { slug: p.id }, props: { p } }));
+}
+const { p } = Astro.props;
+---
+<Base title={`${p.name} — ${SITE.name}`} description={plain(p.copy) || plain(p.line) || `${p.name}, ${p.typ}`} image={`/og/${p.id}.jpg`} start={`project:${p.id}`}>
+  <Gallery project={p.id} />
+</Base>

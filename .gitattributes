@@ -1,0 +1,6 @@
+# Keep text files with Unix line endings in the repository; images are binary.
+* text=auto eol=lf
+*.webp binary
+*.png binary
+*.jpg binary
+*.mp4 binary

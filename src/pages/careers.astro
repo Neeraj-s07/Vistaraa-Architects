@@ -1,0 +1,9 @@
+---
+import Base from '../layouts/Base.astro';
+import Gallery from '../components/Gallery.astro';
+import { SITE, CAREERS } from '../site';
+import { plain, inline } from '../lib/data';
+---
+<Base title={`Careers — ${SITE.name}`} description={plain(inline(CAREERS.lead))} start="panel:careers">
+  <Gallery panel="careers" />
+</Base>
