@@ -1,6 +1,6 @@
 ---
-title: Office 01
-order: 5
+title: Studio Disan Corporate Office
+order: 7
 type: Office interiors
 category: Interiors
 location: Nerul, Navi Mumbai

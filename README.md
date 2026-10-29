@@ -9,9 +9,18 @@ The whole site uses one typeface, DM Sans (set in `astro.config.mjs`). The home 
 "Vistaraa / Architects"; on the first scroll the V and the A fly to the top-left corner and become
 the logo, and clicking that logo plays it back. The two lines are `wordmark` in `src/site.ts`.
 
-The site is dark, with a light version: the half-filled circle in the top bar switches between
-them, and each browser remembers its choice. Both sets of colours are at the top of
+The site is light or dark to match each visitor's phone or computer setting, and changes when that
+setting does. The half-filled circle in the top bar picks the other one; the browser remembers that
+choice until the visitor switches back. Both sets of colours are at the top of
 `src/styles/gallery.css` (`:root` for dark, `:root[data-theme="light"]` for light).
+
+Because the home page is unusual, it explains itself: "Scroll or drag to explore the work" (swipe,
+on phones) shows under the title, then one image is lit up with "Click any image to explore the
+project", and then the top bar pulses with a note under Work / About / Contact (under Menu on
+phones). They come back on every visit until the visitor has done them or seen them twice in that
+visit. To see them again straight away, add `?guide` to the address. The
+wording is in `src/components/Gallery.astro` (the `guide` block) and, for phones, in
+`src/scripts/gallery.js`.
 
 ## Run it on your computer
 
@@ -103,8 +112,27 @@ In `src/site.ts`:
 
 - `url`: `https://www.vistaraaarchitects.com`, already set; change it only if the domain changes
 - `live: true`, so search engines may index the site (it asks them not to while `false`)
-- `formEndpoint`: so the enquiry form actually sends (e.g. a Formspree or Web3Forms endpoint)
-- every line marked `TODO`: address, studio figures, founders' quotes, the Careers wording
+- `formKey`: so enquiries arrive in the studio inbox by themselves (see "The enquiry form")
+- every line marked `TODO`: founders' quotes, the Careers wording
+- `address` in `CONTACT`, if the street should be shown (it is the city and PIN for now)
+
+## The enquiry form
+
+The form on Contact asks for a name and a phone number or an email, plus the project type and a
+message. It sends through [Web3Forms](https://web3forms.com), which is free for 250 enquiries a
+month and needs no account:
+
+1. Open web3forms.com, type the studio email (`info.vistaraaarchitects@gmail.com`) and create an
+   access key. The key arrives in that inbox (check Spam if it doesn't show).
+2. Paste it into `formKey` in `src/site.ts` and publish. The key is meant to be public.
+
+Each enquiry then arrives as an email titled like "Website enquiry: Residence from Priya Shah"
+(`formSubject`); pressing Reply
+answers the visitor directly when they gave an email. Until there is a key, pressing Send opens the
+visitor's own email app with the enquiry written out to the studio, so nothing is lost either way.
+
+The Call and WhatsApp buttons on Contact use the numbers in `principals`; the message WhatsApp
+starts with is `whatsappText`.
 
 ## Publishing
 

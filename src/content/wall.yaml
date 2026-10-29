@@ -22,6 +22,7 @@ rows:
       - kings-avenue-clubhouse/aroma-room-1
       - office-01/view-1
       - aryan-icon/foyer-03
+      - ketanbhai-residence/bedroom-1-view-1
       - kings-avenue/clubhouse-pool
   - size: small
     shift: 140
@@ -32,12 +33,14 @@ rows:
       - kings-avenue/estate-aerial
       - nirajs-bungalow/home-theatre-1
       - office-02/view-2
+      - brijeshbhai-residence/bedroom-1-view-2
       - kings-avenue-clubhouse/bar-lounge-2
   - size: large
     shift: -260
     tiles:
       - nirajs-bungalow/bedroom-2-view-1
       - kings-avenue/internal-street
+      - brijeshbhai-residence/living-room-3
       - aryan-icon/tower-03
       - kings-avenue-clubhouse/reception-1
       - office-03/view-7
@@ -49,6 +52,7 @@ rows:
       - kings-avenue-clubhouse/indoor-games-1
       - aryan-icon/foyer-08
       - kings-avenue/bungalow-aerial-night
+      - ketanbhai-residence/bedroom-3-view-1
       - nirajs-bungalow/bedroom-1-view-1
       - aryan-icon/foyer-14
       - office-02/view-7
@@ -60,6 +64,7 @@ rows:
       - aryan-icon/tower-11
       - kings-avenue/bungalow-aerial
       - office-01/view-7
+      - ketanbhai-residence/living-room-2
       - kings-avenue-clubhouse/banquet-1
       - nirajs-bungalow/dining-2
   - size: small
@@ -69,6 +74,7 @@ rows:
       - nirajs-bungalow/bedroom-4-view-1
       - kings-avenue-clubhouse/bar-lounge-1
       - kings-avenue/clubhouse-garden-night
+      - brijeshbhai-residence/mandir
       - office-03/view-2
       - aryan-icon/foyer-05
       - nirajs-bungalow/kitchen-1

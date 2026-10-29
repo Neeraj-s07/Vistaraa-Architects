@@ -1,6 +1,6 @@
 ---
-title: Office 02
-order: 6
+title: Vistaraa Architects Corporate Office
+order: 8
 type: Office interiors
 category: Interiors
 location: Nerul, Navi Mumbai

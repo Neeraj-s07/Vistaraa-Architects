@@ -26,9 +26,13 @@ const canonical = new URL(Astro.url.pathname, SITE.url).href;
 <meta name="theme-color" content="#121211">
 <meta name="color-scheme" content="dark">
 <script is:inline>
-  // light or dark, as chosen with the button in the top bar (kept in this browser); before anything paints
+  // light or dark, before anything paints: the device's setting, unless the visitor has picked
+  // the other one with the button in the top bar (kept in this browser)
   try {
-    if (localStorage.getItem('vistaraa-theme') === 'light') {
+    var mode = null;
+    try { mode = localStorage.getItem('vistaraa-mode'); } catch (e) {}
+    if (mode !== 'light' && mode !== 'dark') mode = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (mode === 'light') {
       document.documentElement.dataset.theme = 'light';
       document.querySelector('meta[name="theme-color"]').content = '#f1eee8';
       document.querySelector('meta[name="color-scheme"]').content = 'light';

@@ -60,7 +60,7 @@ export const inline = (s: string) =>
   esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
 /** Plain text from HTML, cut to about 160 characters for meta descriptions. */
 export function plain(html: string, max = 160) {
-  const t = html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&rsquo;/g, '’').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&rsquo;/g, '’').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').replace(/ ([,.;:!?])/g, '$1').trim();
   return t.length <= max ? t : t.slice(0, t.lastIndexOf(' ', max - 1)) + '…';
 }
 const stemOf = (f: string) => f.replace(/\.[^.]+$/, '');

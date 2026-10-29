@@ -371,7 +371,7 @@ function drawLogo(t) {
   g.save();
   g.translate(w / 2 - (VB[2] * s) / 2 - VB[0] * s, cy - mh / 2 - VB[1] * s);
   g.scale(s, s);
-  g.fillStyle = cssVar('--tile-fg');
+  g.fillStyle = cssVar('--tile-mark');
   g.fill(new Path2D(MARK_D));
   g.restore();
   // the name in spaced capitals, set letter by letter (canvas letter-spacing is not everywhere yet)
@@ -428,8 +428,9 @@ function wallUpdate(dt, now) {
     }
   }
   updateHover();
-  for (const t of TILES) t.hov = lerp(t.hov, t === hovered ? 1 : 0, damp(0.11, dt));
-  W.hoverAny = lerp(W.hoverAny, hovered ? 1 : 0, damp(0.09, dt));
+  const spot = guide.step === 'tile' && !hovered ? guide.t : null;   // the image the guide lights up
+  for (const t of TILES) t.hov = lerp(t.hov, t === hovered || t === spot ? 1 : 0, damp(0.11, dt));
+  W.hoverAny = lerp(W.hoverAny, hovered ? 1 : spot ? 0.6 : 0, damp(0.09, dt));
   R.frame();
 }
 
@@ -535,7 +536,7 @@ function updateHover() {
     } else if (h) {
       const p = PBY[h.img.p];
       cursor.name.textContent = p ? p.name : '';
-      cursor.act.textContent = 'View';
+      cursor.act.textContent = 'Explore';
       preload(h.img.mid);
     }
   }
@@ -842,6 +843,7 @@ async function openFromTile(t) {
   t.hide = 0;
   renderProject(p, t.k);
   prevMode = 'wall'; origin = t; mode = 'project';
+  guideLearnt('tile');
   if (RM) {
     fl.el.remove(); t.hide = 1; showProject(); gsap.from(pj, { opacity: 0, duration: 0.4 });
     wallVisible(false); busy = false; focusIn(); return;
@@ -873,6 +875,7 @@ function openProject(p, fromEl) {
   const go = () => {
     renderProject(p, heroKey);
     mode = 'project';
+    guideLearnt('tile');
     if (RM || !r || !r.width) {
       showProject(); heroIn(); gsap.fromTo(pj, { opacity: 0 }, { opacity: 1, duration: 0.5 });
       wallVisible(false); busy = false; focusIn(); return;
@@ -1206,6 +1209,8 @@ function setProjects(open, instant) {
   gsap.killTweensOf(pBox);
   if (open) {
     pBox.hidden = false;
+    // all the thumbnails are about to be seen; a lazy one below the fold of the menu would only load on scroll
+    for (const im of $$('img[loading="lazy"]', pBox)) im.loading = 'eager';
     if (RM || instant) { gsap.set(pBox, { height: 'auto' }); return; }
     gsap.fromTo(pBox, { height: 0 }, { height: 'auto', duration: 0.8, ease: 'expo.out' });
     gsap.fromTo($$('.menu-cat-h, .menu-pj', pBox), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger: 0.035, delay: 0.08 });
@@ -1223,6 +1228,7 @@ function openMenu() {
   menu.classList.add('on');
   $('.menu-scroll').scrollTop = 0;
   $('.hint').classList.add('is-gone');
+  guideLearnt('menu');
   dimTo(MENU_DIM, 0.7);
   gsap.to(W, { zoomMul: 0.965, duration: 1.1, ease: 'expo.out', overwrite: 'auto' });
   if (RM) { gsap.set(menuPanel, { xPercent: 0 }); gsap.set(menuScrim, { opacity: 1 }); }
@@ -1314,6 +1320,7 @@ $$('.panel-close').forEach((b) => b.addEventListener('click', closePanel));
 $$('[data-go]').forEach((b) => b.addEventListener('click', (e) => {
   e.preventDefault();
   const go = b.dataset.go;
+  if (b.closest('.nav')) guideLearnt('menu');
   if (go === 'work') { closePanel(); if (mode === 'menu') closeMenu(); return; }
   openPanel(go);
 }));
@@ -1323,32 +1330,79 @@ $('.brand').addEventListener('click', (e) => {
   if (mode === 'menu') closeMenu();
   showTitle();
 });
-$('.ct-form').addEventListener('submit', async (e) => {
+/* Enquiry form. With a Web3Forms key (CONTACT.formKey) it sends in the background; without
+   one, it opens the visitor's email app with the enquiry written out to the studio. */
+const form = $('.ct-form'), thanks = $('.thanks');
+const field = (n) => form.elements.namedItem(n);
+const fLine = $('.form-line', form), fLineText = fLine.textContent;
+let sentKind = '';
+function formSay(msg, el) {
+  fLine.textContent = msg || fLineText;
+  fLine.classList.toggle('is-bad', !!msg);
+  for (const n of ['name', 'phone', 'email']) field(n).removeAttribute('aria-invalid');
+  if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); }
+}
+function formDone(kind) {
+  sentKind = kind;
+  form.hidden = true;
+  $('.th-sent', thanks).hidden = kind !== 'sent';
+  $('.th-mail', thanks).hidden = kind !== 'mail';
+  $('.again', thanks).textContent = kind === 'sent' ? 'Send another enquiry' : 'Back to the form';
+  thanks.hidden = false; thanks.focus({ preventScroll: true });
+  if (!RM) gsap.from(thanks, { opacity: 0, y: 24, duration: 1, ease: 'expo.out' });
+}
+form.addEventListener('input', (e) => {
+  const bad = $('[aria-invalid="true"]', form);
+  if (!bad) return;
+  // fixing that field clears the message, and so does giving an email when it asked for a phone or an email
+  if (e.target === bad || (bad === field('phone') && !bad.value.trim() && e.target === field('email'))) formSay('');
+});
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const f = e.currentTarget;
-  if (!f.name.value.trim() || !/.+@.+\..+/.test(f.email.value)) {
-    const bad = !f.name.value.trim() ? f.name : f.email;
-    bad.focus(); bad.style.borderColor = 'var(--accent)';
-    setTimeout(() => (bad.style.borderColor = ''), 1600);
+  const v = (n) => field(n).value.trim();
+  const name = v('name'), phone = v('phone'), email = v('email'), type = v('project');
+  if (!name) return formSay('Please add your name.', field('name'));
+  if (!phone && !email) return formSay('Please add a phone number or an email, so we can reply.', field('phone'));
+  if (phone && phone.replace(/\D/g, '').length < 7) return formSay('That phone number looks too short.', field('phone'));
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formSay('That email doesn’t look right.', field('email'));
+  formSay('');
+  const subject = DATA.form.subject.replace('{type}', () => type || 'New project').replace('{name}', () => name);
+  if (field('botcheck').checked) { formDone('sent'); return; } // only a bot ticks the hidden box
+  if (!DATA.form.key) {
+    const body = [`Name: ${name}`];
+    if (phone) body.push(`Phone: ${phone}`);
+    if (email) body.push(`Email: ${email}`);
+    if (type) body.push(`Project type: ${type}`);
+    if (v('message')) body.push('', v('message'));
+    const a = document.createElement('a');
+    a.href = `mailto:${DATA.form.to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.join('\r\n'))}`;
+    $('.th-open', thanks).href = a.href; // "Try again" opens the same email
+    form.append(a); a.click(); a.remove();
+    formDone('mail');
     return;
   }
-  const done = () => {
-    f.hidden = true;
-    const th = $('.thanks'); th.hidden = false; th.focus({ preventScroll: true });
-    if (!RM) gsap.from(th, { opacity: 0, y: 24, duration: 1, ease: 'expo.out' });
-  };
-  if (!DATA.form) { done(); return; }
-  const send = $('.send', f), err = $('.form-err', f);
-  send.disabled = true; err.hidden = true;
+  const send = $('.send', form), label = $('.send-l', send), err = $('.form-err', form);
+  send.disabled = true; err.hidden = true; label.textContent = 'Sending…';
+  const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 20000);
   try {
-    const r = await fetch(DATA.form, { method: 'POST', body: new FormData(f), headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new Error(String(r.status));
-    done();
+    const fd = new FormData(form);
+    fd.set('subject', subject);
+    const r = await fetch('https://api.web3forms.com/submit', { method: 'POST', body: fd, headers: { Accept: 'application/json' }, signal: stop.signal });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok || !res.success) throw new Error(res.message || String(r.status));
+    form.reset();
+    formDone('sent');
   } catch (_) {
     err.hidden = false;
   } finally {
-    send.disabled = false;
+    clearTimeout(timer);
+    send.disabled = false; label.textContent = 'Send enquiry';
   }
+});
+$('.again', thanks).addEventListener('click', () => {
+  thanks.hidden = true; form.hidden = false;
+  if (sentKind === 'sent') form.reset();
+  field('name').focus();
 });
 function escape() {
   if (lb.open) lbClose();
@@ -1399,12 +1453,16 @@ function fromURL() {
 }
 
 /* =========================================================================
-   Light / dark: the half-filled circle in the top bar. Dark is the default;
-   the choice is kept in this browser, and the script in Base.astro's <head>
-   applies it before the page paints.
+   Light / dark: follows the device's setting (and changes with it). The
+   half-filled circle in the top bar picks the other one; that choice is kept
+   in this browser until the visitor switches back. The script in Base.astro's
+   <head> applies it before the page paints.
    ========================================================================= */
+const MODE_KEY = 'vistaraa-mode';
+const sysLight = matchMedia('(prefers-color-scheme: light)');
 const themeBtn = $('.theme');
 const isLight = () => html.dataset.theme === 'light';
+const picked = () => { try { return localStorage.getItem(MODE_KEY); } catch (_) { return null; } };
 function themeUI() {
   const light = isLight();
   themeBtn.setAttribute('aria-pressed', String(light));
@@ -1412,10 +1470,11 @@ function themeUI() {
   $('meta[name="theme-color"]').content = cssVar('--bg');
   $('meta[name="color-scheme"]').content = light ? 'light' : 'dark';
 }
-function setTheme(light) {
+function setTheme(light, chosen) {
   const apply = () => {
     if (light) html.dataset.theme = 'light'; else delete html.dataset.theme;
-    try { localStorage.setItem('vistaraa-theme', light ? 'light' : 'dark'); } catch (_) {}
+    // a choice that matches the device is not kept, so the site follows the device again
+    if (chosen) try { if (light === sysLight.matches) localStorage.removeItem(MODE_KEY); else localStorage.setItem(MODE_KEY, light ? 'light' : 'dark'); } catch (_) {}
     themeUI();
     for (const t of TILES) if (t.cv) drawLogo(t);
     if (R) R.colors();
@@ -1424,8 +1483,117 @@ function setTheme(light) {
   if (document.startViewTransition && !RM) document.startViewTransition(apply);
   else apply();
 }
-themeBtn.addEventListener('click', () => setTheme(!isLight()));
+themeBtn.addEventListener('click', () => setTheme(!isLight(), true));
+const onSystem = () => { const m = picked(); if (m !== 'light' && m !== 'dark' && sysLight.matches !== isLight()) setTheme(sysLight.matches, false); };
+if (sysLight.addEventListener) sysLight.addEventListener('change', onSystem); else sysLight.addListener(onSystem);
+try { localStorage.removeItem('vistaraa-theme'); } catch (_) {}   // kept the choice before the site followed the device
 themeUI();
+
+/* =========================================================================
+   Guide: what to do on a home page this unusual.
+   1. While the title is up: "Scroll or drag to explore the work".
+   2. Once the logo has formed: one image is lit up and outlined, "Click any
+      image to explore the project".
+   3. Then the top bar pulses, with a note under Work / About / Contact (on
+      phones, under Menu, which holds them).
+   Every visit: steps 2 and 3 appear until the visitor has done them or seen
+   them twice, and stay away for the rest of that visit (kept for the browser
+   tab). Add ?guide to the address to see them again.
+   ========================================================================= */
+const GUIDE_KEY = 'vistaraa-guide';
+const nav = $('.nav');
+const guide = {
+  on: true, tile: false, menu: false, seen: { tile: 0, menu: 0 }, step: null, t: null, until: 0, wait: 0,
+  hint: $('.hint'), ring: $('.gd-ring'), tipTile: $('.gd-tip-tile'), tipMenu: $('.gd-tip-menu'),
+};
+try { localStorage.removeItem(GUIDE_KEY); } catch (_) {} // earlier versions remembered it for good
+try { guide.on = Q.has('guide') || sessionStorage.getItem(GUIDE_KEY) !== 'done'; } catch (_) {}
+function guideSave() {
+  if (!guide.tile || !guide.menu) return;
+  guide.on = false;
+  try { sessionStorage.setItem(GUIDE_KEY, 'done'); } catch (_) {}
+}
+// done: the visitor has done it, or has had time to read it; otherwise it comes back (twice at most)
+function guideHide(done) {
+  const s = guide.step;
+  if (!s) return;
+  if (done || guide.seen[s] >= 2) guide[s] = true;
+  guide.step = null; guide.t = null;
+  for (const el of [guide.ring, guide.tipTile, guide.tipMenu]) el.classList.remove('on');
+  itog.classList.remove('is-cue'); nav.classList.remove('is-cue');
+  guide.wait = performance.now() + 1800;
+  guideSave();
+}
+function guideLearnt(s) {
+  guide[s] = true;
+  if (guide.step === s) guideHide(true); else guideSave();
+}
+// how much of an image is on screen, clear of the bar (0 to 1)
+function shownPart(r) {
+  const w = Math.min(r.x + r.w, VW) - Math.max(r.x, 0), h = Math.min(r.y + r.h, VH - 40) - Math.max(r.y, 90);
+  return w > 0 && h > 0 ? (w * h) / (r.w * r.h) : 0;
+}
+// a loaded image near the middle, as fully on screen as possible (on phones the images are cut by the edges)
+function guideTile() {
+  let best = null, bs = 1e9;
+  const diag = Math.hypot(VW, VH);
+  for (const t of TILES) {
+    if (t.logo || !t.vis || t.loaded < 0.95) continue;
+    const r = tileRect(t, cam.zoom, 0), part = shownPart(r);
+    if (part < 0.75) continue;
+    const sc = Math.hypot(r.x + r.w / 2 - VW / 2, r.y + r.h / 2 - VH / 2) / diag + (1 - part) * 2;
+    if (sc < bs) { bs = sc; best = t; }
+  }
+  return best;
+}
+function guideShow(now) {
+  const s = !guide.tile ? 'tile' : !guide.menu ? 'menu' : null;
+  if (!s) { guide.on = false; return; }
+  if (s === 'tile') {
+    const t = guideTile();
+    if (!t) { guide.wait = now + 1000; return; }
+    guide.t = t;
+    guide.ring.classList.add('on'); guide.tipTile.classList.add('on');
+  } else {
+    // under Work / About / Contact, centred; on phones (no nav in the bar) under Menu, its pointer at the three lines
+    const wide = nav.offsetWidth > 0, tip = guide.tipMenu;
+    tip.textContent = wide ? tip.dataset.wide : tip.dataset.narrow;
+    const r = (wide ? nav : itog).getBoundingClientRect(), w = tip.offsetWidth;
+    const x = Math.max(16, Math.min(VW - 16 - w, wide ? r.left + r.width / 2 - w / 2 : r.right - w));
+    tip.style.left = x + 'px'; tip.style.top = r.bottom + 14 + 'px';
+    tip.style.setProperty('--cx', clamp((wide ? r.left + r.width / 2 : r.left + 24) - x, 16, w - 16) + 'px');
+    tip.classList.add('on'); itog.classList.add('is-cue');
+    if (wide) nav.classList.add('is-cue');
+  }
+  guide.step = s; guide.seen[s]++;
+  guide.until = now + (s === 'tile' ? 9000 : 7000);
+}
+function guideFrame(now) {
+  if (!guide.on) return;
+  const calm = mode === 'wall' && !panel && !titleUp && !busy && !titleBack && !brand.classList.contains('is-wait');
+  if (!guide.step) {
+    if (calm && !drag.on && now > guide.wait && now - lastInput > 900) guideShow(now);
+    return;
+  }
+  if (!calm || now > guide.until) { guideHide(now > guide.until); return; }
+  if (guide.step !== 'tile') return;
+  // the outline and the note follow the image as the wall moves; if it leaves the screen, try again later
+  const t = guide.t, r = tileRect(t);
+  if (!t.vis || shownPart(r) < 0.5) { guideHide(false); return; }
+  const ring = guide.ring.style;
+  ring.transform = `translate3d(${r.x.toFixed(1)}px,${r.y.toFixed(1)}px,0)`;
+  ring.width = r.w.toFixed(1) + 'px'; ring.height = r.h.toFixed(1) + 'px';
+  // the note goes below the image, else above it, else over its lower edge
+  const tip = guide.tipTile, w = tip.offsetWidth, h = tip.offsetHeight;
+  const below = r.y + r.h + 16 + h < VH - 16, above = !below && r.y - 16 - h > 90;
+  const cx = clamp(r.x + r.w / 2, Math.max(r.x, 0) + 30, Math.min(r.x + r.w, VW) - 30);
+  const x = clamp(cx - w / 2, 16, VW - 16 - w);
+  tip.style.left = x.toFixed(1) + 'px';
+  tip.style.top = (below ? r.y + r.h + 16 : above ? r.y - 16 - h : Math.min(r.y + r.h, VH - 40) - 20 - h).toFixed(1) + 'px';
+  tip.classList.toggle('up', above);
+  tip.classList.toggle('in', !below && !above);
+  tip.style.setProperty('--cx', clamp(cx - x, 18, w - 18).toFixed(1) + 'px');
+}
 
 /* =========================================================================
    Boot: preloader → fly-out
@@ -1465,7 +1633,9 @@ async function boot() {
   st.addEventListener('pointerleave', () => { pointer.in = false; hovered = null; cursor.el.classList.remove('on'); });
   if (!FINE) {
     cursor.el.style.display = 'none';
-    $('.hint').lastChild.textContent = 'Swipe to explore';
+    $('.hint-t').textContent = 'Swipe to explore the work';
+    $('.hint').classList.add('is-touch');
+    guide.tipTile.textContent = 'Tap any image to explore the project';
   }
   // the photo at the top has gone under the bar: the bar's shade and colours change (see .pj-top)
   pjScroll.addEventListener('scroll', () => pj.classList.toggle('past', pjScroll.scrollTop > VH - 70), { passive: true });
@@ -1534,6 +1704,7 @@ function intro() {
     gsap.fromTo('.foot', { opacity: 0 }, { opacity: 1, duration: 1.2, delay: 1.3, clearProps: 'opacity' });
   }
   setTimeout(() => { mode = 'wall'; lastInput = performance.now() - 1200; }, RM ? 0 : 900);
+  setTimeout(() => { if (titleUp) guide.hint.classList.remove('is-gone'); }, RM ? 0 : 2300);
 }
 
 /* =========================================================================
@@ -1546,7 +1717,7 @@ function tick(now) {
   if (pjLenis && mode === 'project') pjLenis.raf(now);
   if (panel && lenisP[panel]) lenisP[panel].raf(now);
   if (FINE) cursor.update(dt);
-  if (renderOn && R) wallUpdate(dt, now);
+  if (renderOn && R) { wallUpdate(dt, now); guideFrame(now); }
 }
 function onResize() {
   VW = innerWidth; VH = innerHeight;

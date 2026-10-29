@@ -22,12 +22,16 @@ const portrait = (f: string) => PORTRAITS['/src/assets/studio/' + f];
 
 const data = JSON.stringify({
   projects, images, wall,
-  name: SITE.name, home: `${SITE.name} — ${SITE.tagline}`, form: CONTACT.formEndpoint,
+  name: SITE.name, home: `${SITE.name} — ${SITE.tagline}`,
+  form: { key: CONTACT.formKey, to: CONTACT.email, subject: CONTACT.formSubject },
 }).replace(/</g, '\\u003c');
 
 const MARK = 'M35 43h49l89 437c5 20 17 30 41 30h280l10 41H146zM180 549h63l-37 156h-64zM441 549h62l41 156h-62zM322 48h53l91 359h-59l-62-274-64 274h-55z';
 const year = new Date().getFullYear();
 const tel = (s: string) => 'tel:' + s.replace(/[^+\d]/g, '');
+const wa = (s: string) => `https://wa.me/${s.replace(/\D/g, '')}?text=${encodeURIComponent(CONTACT.whatsappText)}`;
+const who = (p: { prefix?: string; name: string }) => (p.prefix ? p.prefix + ' ' : '') + p.name;
+const NBSP = '\u00a0'; // keeps "Ar." on the same line as the name
 const srcset = (im: Img) => `${im.mid} ${im.mw}w, ${im.lg} ${im.lw}w, ${im.full} ${im.fw}w`;
 // project images: two columns, one below 861px (see .pj-grid)
 const SIZES = '(max-width: 860px) 94vw, 48vw';
@@ -95,8 +99,15 @@ const shown = { style: 'opacity: 1' };
 
 <p class="foot">
   <span>© {year} {SITE.name}</span>
-  <span class:list={['hint', { 'is-gone': !home }]} aria-hidden="true"><i></i>Drag to explore</span>
 </p>
+
+{/* what to do here: shown by gallery.js (see "Guide") */}
+<div class="guide" aria-hidden="true">
+  <p class="hint is-gone"><span class="hint-i"><i></i></span><span class="hint-t">Scroll or drag to explore the work</span></p>
+  <div class="gd-ring"></div>
+  <p class="gd-tip gd-tip-tile">Click any image to explore the project</p>
+  <p class="gd-tip gd-tip-menu" data-wide="The studio, contact details and every project are up here" data-narrow="About, every project and Contact are in the Menu">The studio, contact details and every project are up here</p>
+</div>
 
 <div class="menu" id="menu">
   <div class="menu-scrim" aria-hidden="true"></div>
@@ -128,7 +139,7 @@ const shown = { style: 'opacity: 1' };
       </ul>
       <div class="menu-foot">
         <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-        {CONTACT.principals.map((p) => <span>{p.name} · <a href={tel(p.phone)}>{p.phone}</a></span>)}
+        {CONTACT.principals.map((p) => <span>{p.prefix && <><span class="ar">{p.prefix}</span>{NBSP}</>}{p.name} · <a href={tel(p.phone)}>{p.phone}</a></span>)}
       </div>
     </div>
   </nav>
@@ -212,6 +223,7 @@ const shown = { style: 'opacity: 1' };
       <p class="lbl" data-rise>About</p>
       <AboutH class="big" id="about-title" data-rise set:html={inline(STUDIO.heading)} />
       <div class="st-grid">
+        <p class="st-say" data-rise set:html={inline(STUDIO.statement)} />
         <p class="st-lead" data-rise set:html={inline(STUDIO.lead)} />
         <div class="st-nums" data-rise>
           {STUDIO.numbers.map((n) => <div><b>{n.value}</b><span>{n.label}</span></div>)}
@@ -232,7 +244,7 @@ const shown = { style: 'opacity: 1' };
             <article class="fdr" data-rise>
               <div class="fdr-p">{portrait(f.photo) && <Image src={portrait(f.photo)} alt={`Portrait of ${f.name}`} width={800} loading="lazy" decoding="async" />}</div>
               {/* the founders' initials, V and A, are the letters of the logo */}
-              <h3><span class="fdr-ini">{f.name.slice(0, 1)}</span>{f.name.slice(1)}</h3>
+              <h3>{f.prefix && <><span class="ar">{f.prefix}</span>{NBSP}</>}<span class="fdr-ini">{f.name.slice(0, 1)}</span>{f.name.slice(1)}</h3>
               <p class="role">{f.role}</p>
               {f.quote && <blockquote>“{f.quote}”</blockquote>}
             </article>
@@ -263,23 +275,54 @@ const shown = { style: 'opacity: 1' };
       <div class="ct-grid">
         <div class="ct-info" data-rise>
           <div><h3>Studio</h3><p set:html={CONTACT.address.map((l) => inline(l)).join('<br>')} /></div>
-          <div><h3>Call</h3><p>{CONTACT.principals.map((p, i) => <>{i > 0 && <br />}{p.name} · <a href={tel(p.phone)}>{p.phone}</a></>)}</p></div>
+          <div><h3>Call or WhatsApp</h3>
+            <div class="ct-people">
+              {CONTACT.principals.map((p) => (
+                <div class="ct-card">
+                  <p class="ct-who">{p.prefix && <><span class="ar">{p.prefix}</span>{NBSP}</>}{p.name}</p>
+                  <p class="ct-num">{p.phone}</p>
+                  <p class="ct-acts">
+                    <a href={tel(p.phone)} aria-label={`Call ${who(p)}`}>Call</a>
+                    <a href={wa(p.phone)} target="_blank" rel="noopener" aria-label={`WhatsApp ${who(p)} (opens WhatsApp)`}>WhatsApp <span aria-hidden="true">↗</span></a>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
           <div><h3>Write</h3><p><a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></p></div>
         </div>
-        <form class="ct-form" data-rise novalidate method="post" action={CONTACT.formEndpoint || undefined}>
-          <div class="fld"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required></div>
-          <div class="fld"><label for="f-mail">Email</label><input id="f-mail" name="email" type="email" autocomplete="email" required></div>
-          <div class="fld full"><label for="f-type">Project type</label>
-            <select id="f-type" name="type"><option value="">Select one</option>{CONTACT.projectTypes.map((t) => <option>{t}</option>)}</select>
+        {/* Without JavaScript the form still works: it posts straight to Web3Forms, or (no key yet) opens an email to the studio. */}
+        <form class="ct-form" data-rise novalidate method="post" action={CONTACT.formKey ? 'https://api.web3forms.com/submit' : `mailto:${CONTACT.email}?subject=${encodeURIComponent('Website enquiry')}`} enctype={CONTACT.formKey ? undefined : 'text/plain'}>
+          {CONTACT.formKey && <>
+            <input type="hidden" name="access_key" value={CONTACT.formKey} />
+            <input type="hidden" name="subject" value={`Website enquiry — ${SITE.name}`} />
+            <input type="hidden" name="from_name" value={`${SITE.name} website`} />
+          </>}
+          <div class="fld"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required aria-describedby="f-line"></div>
+          <div class="fld"><label for="f-phone">Phone</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" aria-describedby="f-line"></div>
+          <div class="fld"><label for="f-mail">Email</label><input id="f-mail" name="email" type="email" autocomplete="email" aria-describedby="f-line"></div>
+          <div class="fld"><label for="f-type">Project type</label>
+            <select id="f-type" name="project"><option value="">Select one</option>{CONTACT.projectTypes.map((t) => <option>{t}</option>)}</select>
           </div>
           <div class="fld full"><label for="f-msg">Tell us about the project</label><textarea id="f-msg" name="message" rows="3" placeholder="Site, scale, timeline…"></textarea></div>
-          <button class="send" type="submit">Send enquiry <span aria-hidden="true">→</span></button>
-          {!CONTACT.formEndpoint && <p class="form-note">The form is not connected yet, so messages are not sent.</p>}
-          <p class="form-err" role="alert" hidden>Sorry, that didn’t send. Please email <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a> instead.</p>
+          <p class="hp" aria-hidden="true"><label>Leave this empty <input type="checkbox" name="botcheck" tabindex="-1" autocomplete="off"></label></p>
+          <div class="send-row">
+            <button class="send" type="submit"><span class="send-l">Send enquiry</span> <span aria-hidden="true">→</span></button>
+            <p class="form-line" id="f-line" role="status">Leave a phone number or an email, whichever you prefer.</p>
+          </div>
+          <p class="form-err" role="alert" hidden>Sorry, that didn’t go through. Please try again in a moment, or write to <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>.</p>
         </form>
         <div class="thanks" hidden tabindex="-1">
-          <h3>Thank you.</h3>
-          <p>{CONTACT.formEndpoint ? 'The studio will be in touch.' : 'The studio will be in touch. (The form is not connected yet, so nothing was sent.)'}</p>
+          <div class="th-sent">
+            <h3>Thank you.</h3>
+            <p>Your enquiry has reached the studio. We will be in touch soon.</p>
+          </div>
+          <div class="th-mail" hidden>
+            <h3>Almost there.</h3>
+            <p>Your email app has opened with the enquiry written out. Press send there and it reaches the studio.</p>
+            <p class="th-alt">Nothing opened? <a class="th-open" href={`mailto:${CONTACT.email}`}>Try again</a>, write to <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>, or call or WhatsApp one of the numbers on this page.</p>
+          </div>
+          <button type="button" class="again">Send another enquiry</button>
         </div>
       </div>
       <p class="panel-foot"><span>{SITE.name} · {SITE.footer}</span><span>© {year}</span></p>
@@ -306,7 +349,7 @@ const shown = { style: 'opacity: 1' };
   <button type="button" class="btn-close panel-close">Close <i aria-hidden="true"></i></button>
 </div>
 
-<div class="cur" aria-hidden="true"><span class="cur-dot"></span><span class="cur-disc"><span class="cur-name"></span><span class="cur-act">View</span></span></div>
+<div class="cur" aria-hidden="true"><span class="cur-dot"></span><span class="cur-disc"><span class="cur-name"></span><span class="cur-act">Explore</span></span></div>
 
 <script is:inline type="application/json" id="site-data" set:html={data}></script>
 <script>

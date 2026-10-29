@@ -33,12 +33,15 @@ export const SITE = {
 
 export const STUDIO = {
   heading: 'Buildings that grow *quieter* with time.',
+  /** The large line that opens the About text. */
+  statement: 'Spaces shaped less by trend, more by site, light and the people who use them.',
   lead:
-    'Vistaraa Architects is a design-driven practice in Ahmedabad, working across India. Founded and led by principal architects **Vishwas Patel** and **Akshi Dedania**, the studio makes spaces shaped less by trend, more by site, light and the people who live inside them. Every project is led by a founding principal, from first sketch to final detail.',
-  /** TODO: confirm these figures with the studio. */
+    // \u00a0 is a space that never breaks: it keeps "Ar." on the same line as the name
+    'Founded by **Ar.\u00a0Vishwas Patel** and **Ar.\u00a0Akshi Dedania**, Vistaraa Architects is a design-driven practice in Ahmedabad, working across India. Every project is led by a founding principal, from first sketch to final detail.',
+  /** Confirmed by the studio (2026-10). */
   numbers: [
-    { value: '12+', label: 'Years in practice' },
-    { value: '60+', label: 'Projects delivered' },
+    { value: '04', label: 'Years in practice' },
+    { value: '10+', label: 'Projects delivered' },
     { value: '02', label: 'Founding principals' },
   ],
   convictions: [
@@ -47,16 +50,18 @@ export const STUDIO = {
     { title: 'Light as instrument', text: 'Daylight is a primary design tool. Sections are drawn around how light enters, moves and changes a room.' },
     { title: 'Restraint', text: 'We remove before we add. A resolved plan is worth more than any ornament.' },
   ],
-  /** Portraits live in src/assets/studio/. TODO: confirm both quotes with the founders. */
+  /** Portraits live in src/assets/studio/; prefix is shown before the name. TODO: confirm both quotes with the founders. */
   founders: [
     {
       name: 'Vishwas Patel',
+      prefix: 'Ar.',
       role: 'Co-founder & Principal Architect',
       photo: 'vishwas-patel.webp',
       quote: 'The drawing is only ever a proposal. The real design happens on site, in the details.',
     },
     {
       name: 'Akshi Dedania',
+      prefix: 'Ar.',
       role: 'Co-founder & Principal Architect',
       photo: 'akshi-dedania.webp',
       quote: 'I want a house to understand its owners better each year — never the reverse.',
@@ -74,14 +79,16 @@ export const STUDIO = {
 
 export const CONTACT = {
   sub: 'Let’s build something quiet & lasting.',
-  /** TODO: the studio's full street address. */
-  address: ['Vistaraa Architects', 'Design Studio, Ahmedabad', 'Gujarat 380001, India'],
-  /** Listed under "Call". */
+  /** Shown under "Studio" in Contact, one line each. Kept to the city for now; add the street when ready. */
+  address: ['Vistaraa Architects', 'Ahmedabad, Gujarat 380001'],
+  /** Contact's "Call or WhatsApp" cards and the menu. prefix: shown before the name (Ar. = registered architect). */
   principals: [
-    { name: 'Vishwas Patel', phone: '+91 95881 16655' },
-    { name: 'Akshi Dedania', phone: '+91 78020 44050' },
+    { prefix: 'Ar.', name: 'Vishwas Patel', phone: '+91 95881 16655' },
+    { prefix: 'Ar.', name: 'Akshi Dedania', phone: '+91 78020 44050' },
   ],
   email: 'info.vistaraaarchitects@gmail.com',
+  /** Written into the chat when a visitor taps WhatsApp; they can change it before sending. */
+  whatsappText: 'Hello, I found Vistaraa Architects online and would like to talk about a project.',
   /** Choices in the enquiry form's "Project type" list. */
   projectTypes: [
     'Residence',
@@ -93,11 +100,14 @@ export const CONTACT = {
     'Collaboration / press',
   ],
   /**
-   * Where the enquiry form sends to. Paste the endpoint URL from a form service
-   * (for example Formspree or Web3Forms). While empty, the form only shows a preview
-   * "thank you" and nothing is sent.
+   * The enquiry form's Web3Forms access key (free, no account: web3forms.com → enter the
+   * studio email → the key arrives by email). With it, enquiries go straight to that inbox.
+   * The key is meant to be public, so it is safe here. While empty, sending opens the
+   * visitor's email app with the enquiry written out, addressed to `email` above.
    */
-  formEndpoint: '',
+  formKey: '',
+  /** The subject line of each enquiry email; {type} and {name} are filled in. */
+  formSubject: 'Website enquiry: {type} from {name}',
 };
 
 /** The Careers panel. TODO: confirm the wording with the studio. */
