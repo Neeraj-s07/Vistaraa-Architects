@@ -5,6 +5,10 @@ wall of the work, a Menu, a full-screen view for each project, and About, Contac
 panels. Every project and panel also has its own address (`/work/kings-avenue/`, `/about/`,
 `/contact/`, `/careers/`), so links can be shared and search engines can find each page.
 
+The top bar holds Work / About / Contact, the light/dark button and, on computers and tablets, the
+Menu (the three lines; it lists every project by category, and Careers). Phones show Work / About /
+Contact instead of the Menu; Careers is linked from Contact, and the projects are on the wall.
+
 The whole site uses one typeface, DM Sans (set in `astro.config.mjs`). The home page opens with
 "Vistaraa / Architects"; on the first scroll the V and the A fly to the top-left corner and become
 the logo, and clicking that logo plays it back. The two lines are `wordmark` in `src/site.ts`.
@@ -16,8 +20,7 @@ choice until the visitor switches back. Both sets of colours are at the top of
 
 Because the home page is unusual, it explains itself: "Scroll or drag to explore the work" (swipe,
 on phones) shows under the title, then one image is lit up with "Click any image to explore the
-project", and then the top bar pulses with a note under Work / About / Contact (under Menu on
-phones). They come back on every visit until the visitor has done them or seen them twice in that
+project", and then the top bar pulses with a note under Work / About / Contact. They come back on every visit until the visitor has done them or seen them twice in that
 visit. To see them again straight away, add `?guide` to the address. The
 wording is in `src/components/Gallery.astro` (the `guide` block) and, for phones, in
 `src/scripts/gallery.js`.

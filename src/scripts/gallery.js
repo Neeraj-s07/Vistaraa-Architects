@@ -90,6 +90,8 @@ let titleUp = true;            // big title showing
 let hovered = null;
 let lastInput = performance.now();
 let renderOn = true;
+// true once About / Contact / Careers has faded in: the wall behind it holds still, so its full-screen blur is not redone every frame
+let wallFrozen = false;
 const DRIFT = { x: 0.82, y: 0.38 };   // px per frame-second at scale 1 (multiplied below)
 // how bright the wall should be for what is open now
 const wallDim = () => (panel ? 0.3 : mode === 'menu' ? MENU_DIM : titleUp ? TD : 1);
@@ -810,6 +812,7 @@ function heroIn() {
 function setInert(on) {
   for (const el of [$('#main'), $('.bar'), $('.foot'), $('.menu')]) el.inert = on;
 }
+function wallOnce() { if (R && renderOn) wallUpdate(0.001, performance.now()); }
 function wallVisible(on) {
   renderOn = on; R.show(on);
   if (!on) for (const t of TILES) if (t.video && !t.video.paused) t.video.pause();
@@ -1300,12 +1303,15 @@ function openPanel(id, quiet) {
     gsap.to(el, { opacity: 1, duration: prev ? 0.35 : 0.7, ease: 'power2.out' });
     gsap.fromTo($$('[data-rise]', el), { opacity: 0, y: 46 }, { opacity: 1, y: 0, duration: 1.3, ease: 'expo.out', stagger: 0.07, delay: prev ? 0.05 : 0.2, clearProps: 'transform' });
   }
+  // the wall stops once the page covers it (after its dimming has finished)
+  wallFrozen = false;
+  gsap.delayedCall(RM || quiet ? 0.05 : 1, () => { if (panel === id) wallFrozen = true; });
   if (!quiet) focusSoft($('.panel-close', el));
 }
 function closePanel() {
   if (!panel) return;
   const el = $('#' + panel), id = panel;
-  panel = null; setNav('work');
+  panel = null; setNav('work'); wallFrozen = false;
   route(ROOT + '/');
   if (lenisP[id]) lenisP[id].stop();
   $('#main').inert = false; $('.foot').inert = false;
@@ -1478,6 +1484,7 @@ function setTheme(light, chosen) {
     themeUI();
     for (const t of TILES) if (t.cv) drawLogo(t);
     if (R) R.colors();
+    if (panel && wallFrozen) wallOnce();
   };
   // a soft crossfade where the browser supports it; elsewhere the colours simply change
   if (document.startViewTransition && !RM) document.startViewTransition(apply);
@@ -1555,18 +1562,22 @@ function guideShow(now) {
     guide.t = t;
     guide.ring.classList.add('on'); guide.tipTile.classList.add('on');
   } else {
-    // under Work / About / Contact, centred; on phones (no nav in the bar) under Menu, its pointer at the three lines
-    const wide = nav.offsetWidth > 0, tip = guide.tipMenu;
-    tip.textContent = wide ? tip.dataset.wide : tip.dataset.narrow;
-    const r = (wide ? nav : itog).getBoundingClientRect(), w = tip.offsetWidth;
-    const x = Math.max(16, Math.min(VW - 16 - w, wide ? r.left + r.width / 2 - w / 2 : r.right - w));
-    tip.style.left = x + 'px'; tip.style.top = r.bottom + 14 + 'px';
-    tip.style.setProperty('--cx', clamp((wide ? r.left + r.width / 2 : r.left + 24) - x, 16, w - 16) + 'px');
-    tip.classList.add('on'); itog.classList.add('is-cue');
-    if (wide) nav.classList.add('is-cue');
+    guidePlaceMenu();
+    guide.tipMenu.classList.add('on');
   }
   guide.step = s; guide.seen[s]++;
   guide.until = now + (s === 'tile' ? 9000 : 7000);
+}
+// step 3: centred under Work / About / Contact, with the Menu button pulsing too where there is one (not on phones)
+function guidePlaceMenu() {
+  const tip = guide.tipMenu, withMenu = itog.offsetWidth > 0;
+  tip.textContent = withMenu ? tip.dataset.wide : tip.dataset.narrow;
+  tip.style.left = '0px'; // measured at the left edge, so its width does not depend on where it last was
+  const r = nav.getBoundingClientRect(), w = tip.offsetWidth, mid = r.left + r.width / 2;
+  const x = clamp(mid - w / 2, 16, Math.max(16, VW - 16 - w));
+  tip.style.left = x + 'px'; tip.style.top = r.bottom + 14 + 'px';
+  tip.style.setProperty('--cx', clamp(mid - x, 16, w - 16) + 'px');
+  nav.classList.add('is-cue'); itog.classList.toggle('is-cue', withMenu);
 }
 function guideFrame(now) {
   if (!guide.on) return;
@@ -1617,6 +1628,8 @@ async function boot() {
   if (!R) R = makeDOM($('.dom-wall'));
   for (const t of TILES) R.add(t);
   R.colors();
+  // a browser can run this before gallery.css has arrived (seen in WebKit): then it read no colours, so draw again on load
+  if (!cssVar('--tile-bg')) addEventListener('load', () => { for (const t of TILES) if (t.cv) drawLogo(t); R.colors(); }, { once: true });
   if (R.warm) R.warm();
   // arriving on a project page: let its own images load first
   if (START_KIND === 'project') setTimeout(loadTiles, 2000); else loadTiles();
@@ -1717,7 +1730,7 @@ function tick(now) {
   if (pjLenis && mode === 'project') pjLenis.raf(now);
   if (panel && lenisP[panel]) lenisP[panel].raf(now);
   if (FINE) cursor.update(dt);
-  if (renderOn && R) { wallUpdate(dt, now); guideFrame(now); }
+  if (renderOn && R && !(panel && wallFrozen)) { wallUpdate(dt, now); guideFrame(now); }
 }
 function onResize() {
   VW = innerWidth; VH = innerHeight;
@@ -1727,6 +1740,9 @@ function onResize() {
   cam.x *= f; cam.y *= f; cam.tx *= f; cam.ty *= f;
   if (R) R.resize();
   if (lb.slides.length) { lbLayout(); if (lb.open) lbZoom(1, 0, 0, false); }
+  if (guide.step === 'menu') guidePlaceMenu();
+  if (mode === 'menu' && !itog.offsetWidth) closeMenu(); // phones have no Menu button to close it with
+  if (panel && wallFrozen) wallOnce();
 }
 
 // small hook used by automated checks

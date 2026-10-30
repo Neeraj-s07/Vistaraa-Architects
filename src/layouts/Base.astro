@@ -51,7 +51,7 @@ const canonical = new URL(Astro.url.pathname, SITE.url).href;
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <Font cssVariable="--font-sans" preload />
-<noscript><style>.loader { display: none; } .theme { display: none; } .brand.is-wait svg { opacity: 1; } .menu { visibility: visible; } .menu-projects[hidden] { display: block !important; }</style></noscript>
+<noscript><style>html .loader, html .theme, html .itog { display: none; } html .brand.is-wait svg { opacity: 1; }</style></noscript>
 <slot name="head" />
 </head>
 <body data-start={start}>

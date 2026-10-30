@@ -106,7 +106,7 @@ const shown = { style: 'opacity: 1' };
   <p class="hint is-gone"><span class="hint-i"><i></i></span><span class="hint-t">Scroll or drag to explore the work</span></p>
   <div class="gd-ring"></div>
   <p class="gd-tip gd-tip-tile">Click any image to explore the project</p>
-  <p class="gd-tip gd-tip-menu" data-wide="The studio, contact details and every project are up here" data-narrow="About, every project and Contact are in the Menu">The studio, contact details and every project are up here</p>
+  <p class="gd-tip gd-tip-menu" data-wide="The studio, contact details and every project are up here" data-narrow="About the studio and how to reach us are up here">The studio, contact details and every project are up here</p>
 </div>
 
 <div class="menu" id="menu">
@@ -290,6 +290,7 @@ const shown = { style: 'opacity: 1' };
             </div>
           </div>
           <div><h3>Write</h3><p><a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></p></div>
+          <div><h3>Careers</h3><p><a href={at('/careers/')} data-go="careers">Work with us</a></p></div>
         </div>
         {/* Without JavaScript the form still works: it posts straight to Web3Forms, or (no key yet) opens an email to the studio. */}
         <form class="ct-form" data-rise novalidate method="post" action={CONTACT.formKey ? 'https://api.web3forms.com/submit' : `mailto:${CONTACT.email}?subject=${encodeURIComponent('Website enquiry')}`} enctype={CONTACT.formKey ? undefined : 'text/plain'}>
