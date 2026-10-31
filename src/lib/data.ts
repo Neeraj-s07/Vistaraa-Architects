@@ -7,6 +7,7 @@ import { getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
+import sharp from 'sharp';
 import type { WALL_FRAMES } from '../content.config';
 import { at } from './url';
 
@@ -35,7 +36,9 @@ export const LOGO = 'logo';
 
 export interface Img {
   k: string; p: string; w: number; h: number; alt: string; cap: string;
-  full: string; fw: number; lg: string; lw: number; mid: string; mw: number;
+  full: string; fw: number; lg: string; lw: number; md: string; dw: number; mid: string; mw: number;
+  /** c: the photo's average colour, shown until it arrives; ph: a tiny blurred copy of its wall tile, inside the page itself */
+  c: string; ph?: string;
   wall?: string; video?: string; wallVideo?: string; ref?: 1;
 }
 export interface Project {
@@ -95,17 +98,19 @@ async function build() {
       if (!meta) throw new Error(`${where}: image "${it.file}" is not in the project folder`);
       const k = `${id}/${stemOf(it.file)}`;
       if (images[k]) throw new Error(`${where}: "${it.file}" is listed twice, or two files share the name "${stemOf(it.file)}"`);
-      const fw = Math.min(meta.width, 2400), lw = Math.min(meta.width, 1600), mw = Math.min(meta.width, 900);
-      const [full, lg, mid] = await Promise.all([
+      const fw = Math.min(meta.width, 2400), lw = Math.min(meta.width, 1600), dw = Math.min(meta.width, 1280), mw = Math.min(meta.width, 900);
+      const [full, lg, md, mid, one] = await Promise.all([
         getImage({ src: meta, width: fw, format: 'webp', quality: 82 }),
         getImage({ src: meta, width: lw, format: 'webp', quality: 80 }),
+        getImage({ src: meta, width: dw, format: 'webp', quality: 78 }),
         getImage({ src: meta, width: mw, format: 'webp', quality: 78 }),
+        sharp(`src/content/projects/${id}/${it.file}`, { limitInputPixels: false }).resize(1, 1).removeAlpha().raw().toBuffer(),
       ]);
       const img: Img = {
         k, p: id, w: meta.width, h: meta.height,
         alt: it.alt || (it.caption ? `${d.title}, ${it.caption}` : d.title),
         cap: it.caption || '',
-        full: full.src, fw, lg: lg.src, lw, mid: mid.src, mw,
+        full: full.src, fw, lg: lg.src, lw, md: md.src, dw, mid: mid.src, mw, c: '#' + one.toString('hex'),
       };
       const v = video(it.video);
       if (v) { img.video = v; img.wallVideo = video(it.wallVideo) || v; }
@@ -131,6 +136,18 @@ async function build() {
 
   const wall = buildWall(sources, projects);
   for (const k of wall.tiles) images[k].wall = at(`/wall/${k}.webp`);
+  const frames = new Map(wall.layout.rows.flatMap((r) => r.tiles));
+  await Promise.all(wall.tiles.map(async (k) => {
+    const src = sources[k], ratio = SHAPE[frames.get(k)!][0];
+    const buf = await sharp(src.path, { limitInputPixels: false })
+      .rotate()
+      .extract(cropBox(src.meta.width, src.meta.height, ratio, src.focus))
+      .resize(ratio >= 1 ? { width: 64 } : { height: 64 })
+      .blur(0.8)
+      .webp({ quality: 50 })
+      .toBuffer();
+    images[k].ph = 'data:image/webp;base64,' + buf.toString('base64');
+  }));
   return { projects, images, sources, wall: wall.layout, wallTiles: wall.tiles };
 }
 

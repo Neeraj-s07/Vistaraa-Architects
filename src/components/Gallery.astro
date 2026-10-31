@@ -32,7 +32,7 @@ const tel = (s: string) => 'tel:' + s.replace(/[^+\d]/g, '');
 const wa = (s: string) => `https://wa.me/${s.replace(/\D/g, '')}?text=${encodeURIComponent(CONTACT.whatsappText)}`;
 const who = (p: { prefix?: string; name: string }) => (p.prefix ? p.prefix + ' ' : '') + p.name;
 const NBSP = '\u00a0'; // keeps "Ar." on the same line as the name
-const srcset = (im: Img) => `${im.mid} ${im.mw}w, ${im.lg} ${im.lw}w, ${im.full} ${im.fw}w`;
+const srcset = (im: Img) => `${im.mid} ${im.mw}w, ${im.md} ${im.dw}w, ${im.lg} ${im.lw}w, ${im.full} ${im.fw}w`;
 // project images: two columns, one below 861px (see .pj-grid)
 const SIZES = '(max-width: 860px) 94vw, 48vw';
 // the menu lists projects under their category, categories in the order they first appear
@@ -149,7 +149,7 @@ const shown = { style: 'opacity: 1' };
   <div class="pj-scroll">
     <div class="pj-inner">
       <section class="pj-hero">
-        <div class="pj-hero-media">
+        <div class="pj-hero-media" style={start && `background-color: ${images[start.hero].c}`}>
           {start && <img class="lo" src={images[start.hero].mid} alt={images[start.hero].alt} />}
           {start && <img class="hi on" src={images[start.hero].full} srcset={`${images[start.hero].lg} ${images[start.hero].lw}w, ${images[start.hero].full} ${images[start.hero].fw}w`} sizes={`max(100vw, ${Math.round((images[start.hero].w / images[start.hero].h) * 100)}vh)`} alt="" aria-hidden="true" decoding="async" />}
         </div>
@@ -182,7 +182,7 @@ const shown = { style: 'opacity: 1' };
             const im = images[k];
             return (
               <li><figure class="pj-fig">
-                <button type="button" class="pj-zoom" data-i={i} style={`aspect-ratio: ${im.w} / ${im.h}`} aria-label={`Enlarge image ${i + 1}${im.cap ? `: ${im.cap}` : ''}`}>
+                <button type="button" class="pj-zoom" data-i={i} style={`aspect-ratio: ${im.w} / ${im.h}; background-color: ${im.c}`} aria-label={`Enlarge image ${i + 1}${im.cap ? `: ${im.cap}` : ''}`}>
                   {im.video
                     ? <video src={im.video} poster={im.mid} muted loop playsinline autoplay preload={i < 4 ? 'auto' : 'metadata'} aria-label={im.alt} width={im.w} height={im.h} />
                     : <img src={im.lg} srcset={srcset(im)} sizes={SIZES} alt={im.alt} width={im.w} height={im.h} loading={i < 4 ? 'eager' : 'lazy'} decoding="async" draggable="false" />}

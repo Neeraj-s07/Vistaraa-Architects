@@ -49,7 +49,7 @@ const TILES = [];
 const ROWS = WL.rows.map((r, ri) => ({
   band: r.band, shift: r.shift || 0,
   tiles: r.tiles.map(([k, sh]) => {
-    const t = { k, sh, img: IM[k], logo: k === LOGO, row: ri, x: 0, w: 0, h: 0, dx: 0, dy: 0, e: 0, hov: 0, hide: 1, loaded: 0, vis: false, focus: WL.focus[k] || [0.5, 0.5] };
+    const t = { k, sh, img: IM[k], logo: k === LOGO, row: ri, x: 0, w: 0, h: 0, dx: 0, dy: 0, e: 0, hov: 0, hide: 1, loaded: 0, crisp: 0, vis: false, focus: WL.focus[k] || [0.5, 0.5] };
     TILES.push(t); return t;
   }),
 }));
@@ -138,7 +138,7 @@ void main() {
 }`;
 const FS = /* glsl */`
 precision highp float;
-uniform sampler2D uTex; uniform vec2 uPlane; uniform vec2 uImg; uniform vec2 uFocus; uniform vec2 uShift;
+uniform sampler2D uTex; uniform sampler2D uLo; uniform float uSharp; uniform vec2 uPlane; uniform vec2 uImg; uniform vec2 uFocus; uniform vec2 uShift;
 uniform float uZoom; uniform float uDim; uniform float uGrade; uniform float uAlpha; uniform float uLoaded;
 uniform vec3 uFade; uniform vec3 uTint; uniform vec3 uPh;
 varying vec2 vUv; varying float vShade;
@@ -148,7 +148,9 @@ void main() {
   s /= uZoom;
   vec2 room = 1.0 - s;
   vec2 o = clamp(room * uFocus + uShift * room * 0.5, vec2(0.0), room);
-  vec3 c = texture2D(uTex, o + vUv * s).rgb;
+  vec2 p = o + vUv * s;
+  vec3 c = texture2D(uTex, p).rgb;
+  if (uSharp < 1.0) c = mix(texture2D(uLo, p).rgb, c, uSharp);   // the blurred preview, until the photo has arrived
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   vec3 g = mix(vec3(l), c, 0.8);
   g = (g - 0.5) * 1.05 + 0.5;
@@ -204,7 +206,7 @@ function makeGL(canvas) {
         vertexShader: VS, fragmentShader: FS, transparent: true, depthTest: false, depthWrite: false, premultipliedAlpha: true,
         uniforms: {
           ...shared,
-          uTex: { value: blank }, uPlane: { value: new Vector2(1, 1) }, uImg: { value: new Vector2(1, 1) },
+          uTex: { value: blank }, uLo: { value: blank }, uSharp: { value: 0 }, uPlane: { value: new Vector2(1, 1) }, uImg: { value: new Vector2(1, 1) },
           uFocus: { value: new Vector2(0.5, 0.5) }, uShift: { value: new Vector2() }, uZoom: { value: 1.1 },
           uDim: { value: 1 }, uGrade: { value: 1 }, uAlpha: { value: 0 }, uLoaded: { value: 0 },
         },
@@ -215,12 +217,14 @@ function makeGL(canvas) {
       t.mesh = m; t.u = mat.uniforms;
     },
     image(t, img) { queue.push([t, img]); },
+    preview(t, img) { queue.push([t, img, true]); },
     video(t, v) {
       const tex = new VideoTexture(v);
       tex.minFilter = LinearFilter; tex.magFilter = LinearFilter; tex.generateMipmaps = false;
       t.u.uTex.value = tex;
       t.u.uImg.value.set(v.videoWidth || 9, v.videoHeight || 16);
       t.u.uFocus.value.set(0.5, 0.5);
+      t.crisp = 1;
     },
     // compile the tile shader now, before the loader animates: in the background where the browser
     // supports it (KHR_parallel_shader_compile), otherwise straight away
@@ -235,16 +239,23 @@ function makeGL(canvas) {
       // one texture per frame: most of the work lands on the graphics chip after this call has returned, so timing
       // it here says nothing, and several at once freeze the screen
       if (queue.length) {
-        const [t, img] = queue.shift();
-        const tex = new Texture(img);
-        // bitmaps arrive already flipped (see loadTiles); images are flipped by WebGL
-        if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) tex.flipY = false;
-        tex.anisotropy = aniso; tex.needsUpdate = true;
-        t.u.uTex.value = t.tex = tex;
-        t.u.uImg.value.set(img.naturalWidth || img.width, img.naturalHeight || img.height);
-        renderer.initTexture(tex);
-        t.texReady = true;
-        if (RM) t.loaded = 1; else gsap.to(t, { loaded: 1, duration: 0.9, ease: 'power2.out' });
+        const [t, img, blur] = queue.shift();
+        if (!blur || !t.texReady) {   // a preview arriving after its photo is not needed
+          const tex = new Texture(img);
+          // bitmaps arrive already flipped (see loadTiles); images are flipped by WebGL
+          if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) tex.flipY = false;
+          tex.needsUpdate = true;
+          if (blur) { tex.minFilter = LinearFilter; tex.generateMipmaps = false; t.u.uLo.value = tex; }
+          else { tex.anisotropy = aniso; t.u.uTex.value = t.tex = tex; t.texReady = true; }
+          t.u.uImg.value.set(img.naturalWidth || img.width, img.naturalHeight || img.height);
+          renderer.initTexture(tex);
+          // the first to arrive fades in from the placeholder; a photo sharpens over its preview
+          if (!blur && t.blurred) { if (RM) t.crisp = 1; else gsap.to(t, { crisp: 1, duration: 0.5, ease: 'power2.out' }); }
+          else {
+            if (blur) t.blurred = true; else t.crisp = 1;
+            if (RM) t.loaded = 1; else gsap.to(t, { loaded: 1, duration: blur ? 0.5 : 0.9, ease: 'power2.out' });
+          }
+        }
       }
       shared.uBend.value = cam.bend;
       shared.uDir.value.set(cam.dirX, -cam.dirY);
@@ -264,6 +275,7 @@ function makeGL(canvas) {
         u.uGrade.value = t.logo ? 0 : 1 - t.hov;
         u.uAlpha.value = Math.min(1, e * 2.2) * W.alpha * t.hide;
         u.uLoaded.value = t.loaded;
+        u.uSharp.value = t.crisp;
       }
       camera.position.set(0, 0, D / cam.zoom);
       renderer.render(scene, camera);
@@ -304,6 +316,10 @@ function makeDOM(root) {
       t.el.prepend(img); t.texReady = true;
       if (RM) t.loaded = 1; else gsap.to(t, { loaded: 1, duration: 0.9 });
     },
+    preview(t, src) {
+      t.el.style.background = `url(${src}) center / cover`;
+      if (RM) t.loaded = 1; else gsap.to(t, { loaded: 1, duration: 0.5 });
+    },
     video(t, v) {
       v.style.cssText = 'position:absolute;inset:0';
       t.el.append(v);
@@ -332,7 +348,9 @@ const texSrc = (k) => IM[k].wall;
 const vidSrc = (k) => IM[k].wallVideo;
 
 // texture loading, nearest tiles first
-let loadedCount = 0, tilesStarted = false;
+let loadedCount = 0, tilesStarted = false, tilesActive = 0, lastPump = 0, fontIn = null;
+const tilesLeft = new Set();
+const wallWanted = () => (mode === 'wall' || mode === 'menu' || mode === 'intro') && !panel;
 // Decoding into an ImageBitmap happens off the main thread, and the bitmap arrives already flipped for
 // WebGL, so uploading it is cheap. Safari before 17 and Firefox before 98 mishandle the options
 // (three.js's GLTFLoader makes the same check); they keep the plain image path.
@@ -351,27 +369,45 @@ function bitmapOf(src) {
     .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(r.status))))
     .then((b) => createImageBitmap(b, { imageOrientation: 'flipY', premultiplyAlpha: 'none' }));
 }
+const decoded = (src) => (BITMAPS && R.kind === 'gl' ? bitmapOf(src).catch(() => imageOf(src)) : imageOf(src));
 function loadTiles() {
   if (tilesStarted) return;
   tilesStarted = true;
-  const order = [...TILES].sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy));
-  const viaBitmap = BITMAPS && R.kind === 'gl';
   // the logo tile's lettering waits for the site's font (but not for long)
   const font = `500 20px ${getComputedStyle(document.body).fontFamily}`;
-  const fontIn = Promise.race([document.fonts ? document.fonts.load(font) : null, new Promise((r) => setTimeout(r, 1800))]).catch(() => {});
-  let i = 0;
-  const next = () => {
-    const t = order[i++];
-    if (!t) return;
-    if (t.logo) { fontIn.then(() => { R.image(t, drawLogo(t)); loadedCount++; }); next(); return; }
-    const src = texSrc(t.k);
-    (viaBitmap ? bitmapOf(src).catch(() => imageOf(src)) : imageOf(src)).then((img) => {
+  fontIn = Promise.race([document.fonts ? document.fonts.load(font) : null, new Promise((r) => setTimeout(r, 1800))]).catch(() => {});
+  for (const t of TILES) {
+    tilesLeft.add(t);
+    // the blurred previews are inside the page, so the wall is whole however slowly the photos come
+    if (t.img && t.img.ph) {
+      if (R.kind === 'gl') decoded(t.img.ph).then((img) => R.preview(t, img)).catch(() => {});
+      else R.preview(t, t.img.ph);
+    }
+  }
+  pumpTiles();
+}
+// The photo nearest the view is next, wherever the wall has moved to: six at a time for what is on or beside the
+// screen, two for the rest, and none while a page or a project covers the wall, so that its own photos come first.
+function pumpTiles() {
+  while (tilesLeft.size && wallWanted()) {
+    let t = null, best = Infinity;
+    for (const x of tilesLeft) { const d = Math.hypot(x.dx, x.dy); if (d < best) { best = d; t = x; } }
+    const near = Math.abs(t.dx) < VW * 0.75 + t.w && Math.abs(t.dy) < VH * 0.75 + t.h;
+    if (tilesActive >= (near ? 6 : 2)) return;
+    tilesLeft.delete(t);
+    if (t.logo) { fontIn.then(() => { R.image(t, drawLogo(t)); loadedCount++; }); continue; }
+    tilesActive++;
+    decoded(texSrc(t.k)).then((img) => {
       R.image(t, img); loadedCount++;
       if (t.img.video) startVideo(t);
-    }).catch(() => {}).finally(next);
-  };
-  for (let c = 0; c < 6; c++) next();
+    }).catch(() => {
+      // the connection dropped: try again in a moment, and again when it is back (tick takes it from tilesLeft)
+      t.tries = (t.tries || 0) + 1;
+      if (t.tries < 5) setTimeout(() => tilesLeft.add(t), 1500 * t.tries);
+    }).finally(() => { tilesActive--; pumpTiles(); });
+  }
 }
+addEventListener('online', () => { for (const t of TILES) if (t.tries >= 5) { t.tries = 0; tilesLeft.add(t); } });
 // The studio's logo as a tile on the wall (`logo` in wall.yaml): the mark with the name beneath.
 // Drawn here rather than kept as an image so that it follows the light / dark switch.
 const MARK_D = $('.brand path').getAttribute('d');
@@ -557,6 +593,7 @@ function hitTest(x, y) {
   }
   return null;
 }
+let hoverLoad = 0;
 function updateHover() {
   let h = null;
   if (FINE && pointer.in && mode === 'wall' && !drag.moved && !busy && !titleBack && Math.hypot(cam.vx, cam.vy) < 1400 * G.s) h = hitTest(pointer.x, pointer.y);
@@ -569,7 +606,8 @@ function updateHover() {
       const p = PBY[h.img.p];
       cursor.name.textContent = p ? p.name : '';
       cursor.act.textContent = 'Explore';
-      preload(h.img.mid);
+      // ready for the click, once the pointer has settled on it rather than the wall passing beneath it
+      clearTimeout(hoverLoad); hoverLoad = setTimeout(() => { if (hovered === h) preload(h.img.mid); }, 150);
     }
   }
   cursor.state(hovered ? 'view' : null, 'wall');
@@ -746,17 +784,27 @@ function showTitle() {
    ========================================================================= */
 const gradeOn = () => cssVar('--grade');   // the wall's colour grade for this theme
 const GRADE_OFF = 'saturate(1) contrast(1) brightness(1)';
+// What is already here shows until a larger photo arrives: as many layers as there are, first on top
+const softly = (urls, pos, colour) => urls.filter(Boolean).map((u) => `url("${u.replace(/["\\]/g, '\\$&')}") ${pos} / cover`).concat(colour || []).join(', ');
 function makeFlyer(img, rect, opt = {}) {
   const el = document.createElement('div');
   el.className = 'flyer';
   Object.assign(el.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
+  const layers = [];
+  if (opt.under) {
+    // behind the larger photo until it arrives, zooming and grading along with it
+    const u = document.createElement('div');
+    u.className = 'flyer-under';
+    u.style.background = softly(opt.under, opt.focus ? `${opt.focus[0] * 100}% ${opt.focus[1] * 100}%` : '50% 50%', img.c);
+    el.append(u); layers.push(u);
+  }
   let media;
   if (opt.video) { media = opt.video; media.style.cssText = ''; }
   else { media = new Image(); media.alt = ''; media.decoding = 'sync'; media.src = opt.src || img.mid; }
   if (opt.focus) media.style.objectPosition = `${opt.focus[0] * 100}% ${opt.focus[1] * 100}%`;
-  el.append(media);
+  el.append(media); layers.push(media);
   document.body.append(el);
-  return { el, media };
+  return { el, layers };
 }
 function innerFrom(t, rect) {
   // match the shader: zoomed + parallax-shifted inside the frame
@@ -787,7 +835,7 @@ function mediaEl(img, eager) {
   i.alt = img.alt; i.decoding = 'async'; i.loading = eager ? 'eager' : 'lazy'; i.draggable = false;
   i.width = img.w; i.height = img.h;
   i.sizes = GRID_SIZES;
-  i.srcset = `${img.mid} ${img.mw}w, ${img.lg} ${img.lw}w, ${img.full} ${img.fw}w`;
+  i.srcset = `${img.mid} ${img.mw}w, ${img.md} ${img.dw}w, ${img.lg} ${img.lw}w, ${img.full} ${img.fw}w`;
   i.src = img.lg;
   if (img.ref) i.dataset.ref = '';
   return i;
@@ -796,15 +844,22 @@ function renderProject(p, heroKey) {
   pjCur = p; pjHeroKey = heroKey;
   const himg = IM[heroKey];
   const hm = $('.pj-hero-media'); hm.textContent = '';
+  hm.style.background = softly([himg.wall, heroKey === p.hero ? p.thumb : null, himg.ph], '50% 50%', himg.c);
   if (himg.video) {
     const v = mediaEl(himg, true); v.className = 'lo'; hm.append(v);
   } else {
     const lo = new Image(); lo.alt = himg.alt; lo.src = himg.mid; lo.className = 'lo'; if (himg.ref) lo.dataset.ref = '';
     const hi = new Image(); hi.alt = ''; hi.setAttribute('aria-hidden', 'true'); hi.className = 'hi'; hi.decoding = 'async'; if (himg.ref) hi.dataset.ref = '';
     hi.onload = () => hi.classList.add('on');
-    // it covers the screen, so on an upright phone the photo's height decides how wide it is shown
-    hi.sizes = `max(100vw, ${Math.round((himg.w / himg.h) * 100)}vh)`; hi.srcset = `${himg.lg} ${himg.lw}w, ${himg.full} ${himg.fw}w`; hi.src = himg.full;
     hm.append(lo, hi);
+    // the sharp one is the largest file on the page, so it waits until the first has come
+    const sharpen = () => {
+      if (!hi.isConnected) return;
+      // it covers the screen, so on an upright phone the photo's height decides how wide it is shown
+      hi.sizes = `max(100vw, ${Math.round((himg.w / himg.h) * 100)}vh)`; hi.srcset = `${himg.lg} ${himg.lw}w, ${himg.full} ${himg.fw}w`; hi.src = himg.full;
+    };
+    if (lo.complete) sharpen();
+    else { lo.addEventListener('load', sharpen, { once: true }); lo.addEventListener('error', sharpen, { once: true }); }
   }
   $('.pj-kicker').textContent = `${p.no} — ${p.typ}${p.placeholder ? ' · Reference' : ''}`;
   $('.pj-title').innerHTML = p.name.split(' ').map((w) => `<span class="w"><span>${esc(w)}</span></span>`).join(' ');
@@ -823,6 +878,7 @@ function renderProject(p, heroKey) {
     const f = document.createElement('figure'); f.className = 'pj-fig';
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pj-zoom'; b.dataset.i = i;
     b.style.aspectRatio = `${img.w} / ${img.h}`;
+    b.style.backgroundColor = img.c;
     b.setAttribute('aria-label', `Enlarge image ${i + 1}${img.cap ? `: ${img.cap}` : ''}`);
     b.append(mediaEl(img, i < 4));
     const c = document.createElement('figcaption');
@@ -913,11 +969,11 @@ async function openFromTile(t) {
   if (t.img.video && t.video) {
     fl = makeFlyer(t.img, rect, { video: t.video });
   } else {
-    await Promise.race([preload(t.img.mid), new Promise((r) => setTimeout(r, 350))]);
-    fl = makeFlyer(t.img, rect, { focus: t.focus });
+    await Promise.race([preload(t.img.mid), new Promise((r) => setTimeout(r, 120))]);
+    fl = makeFlyer(t.img, rect, { focus: t.focus, under: [t.img.wall, t.img.ph] });
   }
   const inner = innerFrom(t, rect);
-  gsap.set(fl.media, { ...inner, filter: t.hov > 0.5 ? GRADE_OFF : gradeOn() });
+  gsap.set(fl.layers, { ...inner, filter: t.hov > 0.5 ? GRADE_OFF : gradeOn() });
   t.hide = 0;
   renderProject(p, t.k);
   prevMode = 'wall'; origin = t; mode = 'project';
@@ -930,7 +986,7 @@ async function openFromTile(t) {
   gsap.to(W, { zoomMul: 0.93, duration: 0.8, ease: 'power3.out' });
   const tl = gsap.timeline({ defaults: { duration: 0.8, ease: 'power3.out' } });
   tl.to(fl.el, { left: 0, top: 0, width: VW, height: VH }, 0)
-    .to(fl.media, { x: 0, y: 0, scale: 1, filter: GRADE_OFF }, 0)
+    .to(fl.layers, { x: 0, y: 0, scale: 1, filter: GRADE_OFF }, 0)
     .add(() => {
       showProject(); heroIn();
       const finish = () => { if (t.img.video && t.video) { fl.el.remove(); } else fl.el.remove(); wallVisible(false); busy = false; focusIn(); };
@@ -958,12 +1014,12 @@ function openProject(p, fromEl) {
       showProject(); heroIn(); gsap.fromTo(pj, { opacity: 0 }, { opacity: 1, duration: 0.5 });
       wallVisible(false); busy = false; focusIn(); return;
     }
-    const fl = makeFlyer(img, { x: r.left, y: r.top, w: r.width, h: r.height });
+    const fl = makeFlyer(img, { x: r.left, y: r.top, w: r.width, h: r.height }, { under: [p.thumb, img.ph] });
     gsap.timeline({ defaults: { duration: 0.8, ease: 'power3.out' } })
       .to(fl.el, { left: 0, top: 0, width: VW, height: VH }, 0)
       .add(() => { showProject(); heroIn(); requestAnimationFrame(() => fl.el.remove()); wallVisible(false); busy = false; focusIn(); });
   };
-  preload(img.mid).then(go);
+  Promise.race([preload(img.mid), new Promise((r) => setTimeout(r, 120))]).then(go);
 }
 function closeProject() {
   if (busy || mode !== 'project') return;
@@ -998,9 +1054,9 @@ function closeProject() {
   const img = IM[t.k];
   const heroHi = $('.pj-hero-media .hi.on');
   const fl = img.video && t.video ? makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { video: t.video })
-                                  : makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { focus: t.focus, src: heroHi ? heroHi.currentSrc || img.full : img.mid });
+                                  : makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { focus: t.focus, src: heroHi ? heroHi.currentSrc || img.full : img.mid, under: [img.wall, img.ph] });
   if (t.video) t.video.play().catch(() => {});
-  gsap.set(fl.media, { filter: GRADE_OFF, scale: 1, x: 0, y: 0 });
+  gsap.set(fl.layers, { filter: GRADE_OFF, scale: 1, x: 0, y: 0 });
   pj.classList.remove('on', 'shade'); gsap.set(pj, { opacity: 0 });
   t.hov = 0;
   // the wall holds still until the photo has landed on its tile
@@ -1009,7 +1065,7 @@ function closeProject() {
   const inner = innerFrom(t, rect);
   gsap.timeline({ defaults: { duration: 0.75, ease: 'power3.out' } })
     .to(fl.el, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }, 0)
-    .to(fl.media, { ...inner, filter: gradeOn() }, 0)
+    .to(fl.layers, { ...inner, filter: gradeOn() }, 0)
     .add(() => {
       t.hide = 1;
       // the wall may not be due a draw on this refresh, and the tile must be there before its flying copy goes
@@ -1356,10 +1412,13 @@ itog.addEventListener('click', () => {
   if (mode === 'menu') closeMenu(); else if (mode === 'wall') openMenu();
 });
 menuScrim.addEventListener('click', () => closeMenu());
-$$('.menu-pj').forEach((a) => a.addEventListener('click', (e) => {
-  e.preventDefault();
-  if (mode === 'menu') openProject(PBY[a.dataset.p], $('.menu-th', a));
-}));
+$$('.menu-pj').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (mode === 'menu') openProject(PBY[a.dataset.p], $('.menu-th', a));
+  });
+  a.addEventListener('pointerenter', () => preload(IM[PBY[a.dataset.p].hero].mid));
+});
 
 /* =========================================================================
    About / Contact / Careers panels
@@ -1633,7 +1692,7 @@ function guideTile() {
   let best = null, bs = 1e9;
   const diag = Math.hypot(VW, VH);
   for (const t of TILES) {
-    if (t.logo || !t.vis || t.loaded < 0.95) continue;
+    if (t.logo || !t.vis || !t.texReady || t.loaded < 0.95) continue;
     const r = tileRect(t, cam.zoom, 0), part = shownPart(r);
     if (part < 0.75) continue;
     const sc = Math.hypot(r.x + r.w / 2 - VW / 2, r.y + r.h / 2 - VH / 2) / diag + (1 - part) * 2;
@@ -1815,7 +1874,10 @@ let lastWall = 0;
 function tick(now) {
   requestAnimationFrame(tick);
   if (FINE) cursor.update();
-  if (!tilesStarted && R && (mode === 'wall' || mode === 'menu') && !panel) loadTiles();
+  if (R && wallWanted()) {
+    if (!tilesStarted) loadTiles();
+    else if (tilesLeft.size && now - lastPump > 200) { lastPump = now; pumpTiles(); }
+  }
   // the wall is drawn at most ~100 times a second: on 120–240 Hz screens every 2nd or 3rd refresh, evenly. Asked for
   // every refresh, a laptop's or phone's graphics chip misses some, and the uneven steps show as stutter
   if (renderOn && R && !(panel && wallFrozen) && now - lastWall > 9.5) {
