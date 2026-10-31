@@ -305,6 +305,11 @@ em { font-style: normal; color: var(--fg); }
 /* ---------- panels ---------- */
 .panel { position: fixed; inset: 0; z-index: 60; visibility: hidden; opacity: 0; background: var(--panel-bg); -webkit-backdrop-filter: blur(22px) saturate(.8); backdrop-filter: blur(22px) saturate(.8); }
 .panel.on { visibility: visible; }
+/* gallery.js puts a small blurred picture of the wall (canvas.wall-snap) behind the open page: far lighter than
+   redoing the blur above on every frame the page scrolls. Without WebGL the pages keep that blur. */
+.panel.has-snap { -webkit-backdrop-filter: none; backdrop-filter: none; background: none; }
+.panel.has-snap::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--panel-bg); }
+.wall-snap { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; }
 /* closed panels and a closed project view skip layout entirely (cheaper start, smoother wall) */
 .panel:not(.on) .panel-in, .pj:not(.on) .pj-inner { content-visibility: hidden; }
 .panel-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 62px, #000 150px); mask-image: linear-gradient(to bottom, transparent 0, transparent 62px, #000 150px); }

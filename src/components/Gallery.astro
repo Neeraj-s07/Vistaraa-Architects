@@ -151,7 +151,7 @@ const shown = { style: 'opacity: 1' };
       <section class="pj-hero">
         <div class="pj-hero-media">
           {start && <img class="lo" src={images[start.hero].mid} alt={images[start.hero].alt} />}
-          {start && <img class="hi on" src={images[start.hero].full} alt="" aria-hidden="true" decoding="async" />}
+          {start && <img class="hi on" src={images[start.hero].full} srcset={`${images[start.hero].lg} ${images[start.hero].lw}w, ${images[start.hero].full} ${images[start.hero].fw}w`} sizes={`max(100vw, ${Math.round((images[start.hero].w / images[start.hero].h) * 100)}vh)`} alt="" aria-hidden="true" decoding="async" />}
         </div>
         <div class="pj-hero-text">
           <div>

@@ -5,8 +5,8 @@
 import { gsap } from 'gsap';
 import Lenis from 'lenis';
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, PlaneGeometry, DataTexture, Vector2, Vector3,
-  ShaderMaterial, Mesh, VideoTexture, LinearFilter, Texture, MathUtils,
+  WebGLRenderer, WebGLRenderTarget, Scene, PerspectiveCamera, PlaneGeometry, DataTexture, Vector2, Vector3,
+  ShaderMaterial, Mesh, VideoTexture, LinearFilter, LinearSRGBColorSpace, Texture, MathUtils,
 } from 'three';
 
 /* =========================================================================
@@ -168,6 +168,9 @@ function makeGL(canvas) {
   } catch (e) { return null; }
   if (!renderer || !renderer.getContext()) return null;
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  // the tile shader writes its colours as they are, so this changes nothing on screen; it matches the small drawing
+  // for the pages (R.snap), which would otherwise build a second shader, and pause, as the first page opens
+  renderer.outputColorSpace = LinearSRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
   const scene = new Scene();
   const FOV = 35;
@@ -182,6 +185,7 @@ function makeGL(canvas) {
   };
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const queue = [];
+  let snapRT = null, snapPx = null;
   const api = {
     kind: 'gl',
     resize() {
@@ -229,9 +233,9 @@ function makeGL(canvas) {
       scene.children.forEach((m) => (m.visible = false));
     },
     frame() {
-      // upload textures within a small time budget per frame to stay smooth
-      const t0 = performance.now();
-      while (queue.length && performance.now() - t0 < 5) {
+      // one texture per frame: most of the work lands on the graphics chip after this call has returned, so timing
+      // it here says nothing, and several at once freeze the screen
+      if (queue.length) {
         const [t, img] = queue.shift();
         const tex = new Texture(img);
         // bitmaps arrive already flipped (see loadTiles); images are flipped by WebGL
@@ -266,6 +270,16 @@ function makeGL(canvas) {
       renderer.render(scene, camera);
     },
     show(on) { canvas.style.visibility = on ? 'visible' : 'hidden'; },
+    // the wall drawn small, into memory: the pages' blurred background (wallSnap)
+    snap(w, h) {
+      if (!snapRT || snapRT.width !== w || snapRT.height !== h) {
+        if (snapRT) snapRT.dispose();
+        snapRT = new WebGLRenderTarget(w, h); snapPx = new Uint8Array(w * h * 4);
+      }
+      renderer.setRenderTarget(snapRT); renderer.render(scene, camera); renderer.setRenderTarget(null);
+      renderer.readRenderTargetPixels(snapRT, 0, 0, w, h, snapPx);
+      return snapPx;
+    },
   };
   api.resize();
   return api;
@@ -773,7 +787,9 @@ function renderProject(p, heroKey) {
   } else {
     const lo = new Image(); lo.alt = himg.alt; lo.src = himg.mid; lo.className = 'lo'; if (himg.ref) lo.dataset.ref = '';
     const hi = new Image(); hi.alt = ''; hi.setAttribute('aria-hidden', 'true'); hi.className = 'hi'; hi.decoding = 'async'; if (himg.ref) hi.dataset.ref = '';
-    hi.onload = () => hi.classList.add('on'); hi.src = himg.full;
+    hi.onload = () => hi.classList.add('on');
+    // it covers the screen, so on an upright phone the photo's height decides how wide it is shown
+    hi.sizes = `max(100vw, ${Math.round((himg.w / himg.h) * 100)}vh)`; hi.srcset = `${himg.lg} ${himg.lw}w, ${himg.full} ${himg.fw}w`; hi.src = himg.full;
     hm.append(lo, hi);
   }
   $('.pj-kicker').textContent = `${p.no} — ${p.typ}${p.placeholder ? ' · Reference' : ''}`;
@@ -813,6 +829,54 @@ function setInert(on) {
   for (const el of [$('#main'), $('.bar'), $('.foot'), $('.menu')]) el.inert = on;
 }
 function wallOnce() { if (R && renderOn) wallUpdate(0.001, performance.now()); }
+/* The pages (About, Contact, Careers) show the wall softly blurred behind them. A live CSS blur is redone on every
+   frame the page scrolls, more than a laptop's or phone's graphics chip keeps up with, so the open page gets one
+   blurred picture of the wall instead (a small canvas, stretched to fill it): drawn as the first page opens, and
+   again on a theme change or resize. Without WebGL the pages keep the CSS blur. */
+const PANEL_DIM = 0.3;
+const snap = { cv: document.createElement('canvas'), src: document.createElement('canvas'), small: document.createElement('canvas'), ok: false };
+snap.cv.className = 'wall-snap'; snap.cv.setAttribute('aria-hidden', 'true');
+snap.cx = snap.cv.getContext('2d');
+snap.filter = !!snap.cx && 'filter' in CanvasRenderingContext2D.prototype;
+function wallSnap(redraw = true) {
+  if (!R || !renderOn || !panel) return;
+  if (R.kind !== 'gl' || !snap.cx) { wallOnce(); return; }
+  const el = $('#' + panel), panels = $$('.panel');
+  try {
+    if (redraw || !snap.ok) {
+      wallUpdate(0.001, performance.now());   // sizes after a resize, colours after a theme change
+      // drawn at 1/8 size by the graphics chip (copying back the full-size canvas is slow); its rows come bottom-up
+      const w = Math.ceil(VW / 8), h = Math.ceil(VH / 8), cx = snap.cx, src = snap.src;
+      src.width = w; src.height = h;
+      src.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(R.snap(w, h).buffer), w, h), 0, 0);
+      snap.cv.width = w; snap.cv.height = h;
+      cx.fillStyle = cssVar('--bg'); cx.fillRect(0, 0, w, h);
+      cx.save(); cx.translate(0, h); cx.scale(1, -1);
+      if (snap.filter) {
+        // the CSS was blur(22px) saturate(.8): 2.75px at 1/8 size, less the softening of stretching it back up
+        cx.filter = 'blur(2.25px) saturate(.8)';
+        cx.drawImage(src, 0, 0);
+      } else {
+        // no canvas filters (Safari before 18): shrinking further and back up blurs it
+        const s = snap.small, sw = Math.ceil(w / 4), sh = Math.ceil(h / 4);
+        s.width = sw; s.height = sh;
+        s.getContext('2d').drawImage(src, 0, 0, sw, sh);
+        cx.drawImage(s, 0, 0, w, h);
+      }
+      cx.restore();
+      // the page dims the wall to PANEL_DIM: darken the picture from what it is now to that
+      const [r, g, b] = cssRGB('--wall-fade').map((v) => Math.round(v * 255));
+      cx.fillStyle = `rgba(${r}, ${g}, ${b}, ${clamp(1 - PANEL_DIM / Math.max(W.dim, 0.01), 0, 1)})`;
+      cx.fillRect(0, 0, w, h);
+      snap.ok = true;
+    }
+    if (snap.cv.parentNode !== el) el.prepend(snap.cv);
+    for (const p of panels) p.classList.toggle('has-snap', p === el);
+  } catch (e) {
+    snap.ok = false; snap.cv.remove();
+    for (const p of panels) p.classList.remove('has-snap');
+  }
+}
 function wallVisible(on) {
   renderOn = on; R.show(on);
   if (!on) for (const t of TILES) if (t.video && !t.video.paused) t.video.pause();
@@ -924,7 +988,7 @@ function closeProject() {
   const img = IM[t.k];
   const heroHi = $('.pj-hero-media .hi.on');
   const fl = img.video && t.video ? makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { video: t.video })
-                                  : makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { focus: t.focus, src: heroHi ? img.full : img.mid });
+                                  : makeFlyer(img, { x: 0, y: 0, w: VW, h: VH }, { focus: t.focus, src: heroHi ? heroHi.currentSrc || img.full : img.mid });
   if (t.video) t.video.play().catch(() => {});
   gsap.set(fl.media, { filter: GRADE_OFF, scale: 1, x: 0, y: 0 });
   pj.classList.remove('on', 'shade'); gsap.set(pj, { opacity: 0 });
@@ -937,7 +1001,8 @@ function closeProject() {
     .to(fl.media, { ...inner, filter: gradeOn() }, 0)
     .add(() => {
       t.hide = 1;
-      requestAnimationFrame(() => { fl.el.remove(); });
+      // the wall may not be due a draw on this refresh, and the tile must be there before its flying copy goes
+      requestAnimationFrame(() => { wallOnce(); fl.el.remove(); });
       end();
       const s = $('.wall-a11y a'); if (document.activeElement === document.body && s) s.blur();
     });
@@ -1288,6 +1353,7 @@ function openPanel(id, quiet) {
   route(ROOT + `/${id}/`, PANELS[id]);
   shrinkTitle();
   const el = $('#' + id);
+  gsap.killTweensOf(el);   // reopened while still closing: that fade would otherwise hide it when it ends
   el.classList.add('on');
   $('#main').inert = true; $('.foot').inert = true;
   $('.foot').classList.add('is-hidden');
@@ -1296,7 +1362,8 @@ function openPanel(id, quiet) {
     if (!lenisP[id]) lenisP[id] = new Lenis({ wrapper: $('.panel-scroll', el), content: $('.panel-in', el), lerp: 0.09, smoothWheel: true });
     lenisP[id].scrollTo(0, { immediate: true }); lenisP[id].start();
   }
-  dimTo(0.3, 0.9, 'power2.out');
+  wallSnap(!prev);   // a page opened from another one keeps its picture
+  dimTo(PANEL_DIM, 0.9, 'power2.out');
   hovered = null; cursor.state(null);
   if (RM || quiet) gsap.set(el, { opacity: 1 });
   else {
@@ -1484,7 +1551,7 @@ function setTheme(light, chosen) {
     themeUI();
     for (const t of TILES) if (t.cv) drawLogo(t);
     if (R) R.colors();
-    if (panel && wallFrozen) wallOnce();
+    if (panel) wallSnap();
   };
   // a soft crossfade where the browser supports it; elsewhere the colours simply change
   if (document.startViewTransition && !RM) document.startViewTransition(apply);
@@ -1629,10 +1696,10 @@ async function boot() {
   for (const t of TILES) R.add(t);
   R.colors();
   // a browser can run this before gallery.css has arrived (seen in WebKit): then it read no colours, so draw again on load
-  if (!cssVar('--tile-bg')) addEventListener('load', () => { for (const t of TILES) if (t.cv) drawLogo(t); R.colors(); }, { once: true });
+  if (!cssVar('--tile-bg')) addEventListener('load', () => { for (const t of TILES) if (t.cv) drawLogo(t); R.colors(); if (panel) wallSnap(); }, { once: true });
   if (R.warm) R.warm();
-  // arriving on a project page: let its own images load first
-  if (START_KIND === 'project') setTimeout(loadTiles, 2000); else loadTiles();
+  // arriving on a project or a page, the wall's photos wait until the wall is wanted (see tick)
+  if (START_KIND !== 'project' && START_KIND !== 'panel') loadTiles();
 
   // stage events
   const st = stage();
@@ -1723,14 +1790,20 @@ function intro() {
 /* =========================================================================
    Loop + resize
    ========================================================================= */
-let last = performance.now();
+let last = performance.now(), lastWall = 0;
 function tick(now) {
   requestAnimationFrame(tick);
   const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
   if (pjLenis && mode === 'project') pjLenis.raf(now);
   if (panel && lenisP[panel]) lenisP[panel].raf(now);
   if (FINE) cursor.update(dt);
-  if (renderOn && R && !(panel && wallFrozen)) { wallUpdate(dt, now); guideFrame(now); }
+  if (!tilesStarted && R && (mode === 'wall' || mode === 'menu') && !panel) loadTiles();
+  // the wall is drawn at most ~100 times a second: on 120–240 Hz screens every 2nd or 3rd refresh, evenly. Asked for
+  // every refresh, a laptop's or phone's graphics chip misses some, and the uneven steps show as stutter
+  if (renderOn && R && !(panel && wallFrozen) && now - lastWall > 9.5) {
+    wallUpdate(Math.min(0.05, Math.max(0.001, (now - lastWall) / 1000)), now); lastWall = now;
+    guideFrame(now);
+  }
 }
 function onResize() {
   VW = innerWidth; VH = innerHeight;
@@ -1742,7 +1815,8 @@ function onResize() {
   if (lb.slides.length) { lbLayout(); if (lb.open) lbZoom(1, 0, 0, false); }
   if (guide.step === 'menu') guidePlaceMenu();
   if (mode === 'menu' && !itog.offsetWidth) closeMenu(); // phones have no Menu button to close it with
-  if (panel && wallFrozen) wallOnce();
+  // resizing clears the canvas, and the next refresh may not be one the wall is drawn on
+  if (panel) wallSnap(); else wallOnce();
 }
 
 // small hook used by automated checks
