@@ -3,7 +3,6 @@
    Content comes from the JSON that Gallery.astro writes into #site-data.
    ========================================================================= */
 import { gsap } from 'gsap';
-import Lenis from 'lenis';
 import {
   WebGLRenderer, WebGLRenderTarget, Scene, PerspectiveCamera, PlaneGeometry, DataTexture, Vector2, Vector3,
   ShaderMaterial, Mesh, VideoTexture, LinearFilter, LinearSRGBColorSpace, Texture, MathUtils,
@@ -419,8 +418,8 @@ function wallUpdate(dt, now) {
   cam.tx += DRIFT.x * W.drift * dt * 60 * G.s * 0.22;
   cam.ty += DRIFT.y * W.drift * dt * 60 * G.s * 0.22;
   const ox = cam.x, oy = cam.y;
-  // under a finger the wall follows closely; otherwise it eases and glides
-  const k = damp(RM ? 0.3 : drag.on && drag.touch ? 0.24 : 0.075, dt);
+  // under a hand the wall follows closely; otherwise it eases and glides
+  const k = damp(RM ? 0.3 : drag.on ? 0.35 : drag.glide ? 0.075 : 0.13, dt);
   cam.x += (cam.tx - cam.x) * k;
   cam.y += (cam.ty - cam.y) * k;
   const vx = (cam.x - ox) / Math.max(dt, 1e-3), vy = (cam.y - oy) / Math.max(dt, 1e-3);
@@ -445,15 +444,15 @@ function wallUpdate(dt, now) {
   }
   updateHover();
   const spot = guide.step === 'tile' && !hovered ? guide.t : null;   // the image the guide lights up
-  for (const t of TILES) t.hov = lerp(t.hov, t === hovered || t === spot ? 1 : 0, damp(0.11, dt));
-  W.hoverAny = lerp(W.hoverAny, hovered ? 1 : spot ? 0.6 : 0, damp(0.09, dt));
+  for (const t of TILES) t.hov = lerp(t.hov, t === hovered || t === spot ? 1 : 0, damp(0.18, dt));
+  W.hoverAny = lerp(W.hoverAny, hovered ? 1 : spot ? 0.6 : 0, damp(0.15, dt));
   R.frame();
 }
 
 /* =========================================================================
    Input: drag, wheel, keys, idle drift
    ========================================================================= */
-const drag = { on: false, moved: false, touch: false, id: null, sx: 0, sy: 0, lx: 0, ly: 0, vx: 0, vy: 0, t: 0, dist: 0 };
+const drag = { on: false, moved: false, glide: false, id: null, sx: 0, sy: 0, lx: 0, ly: 0, vx: 0, vy: 0, t: 0, dist: 0 };
 const pointer = { x: VW / 2, y: VH / 2, in: false };
 let lastPointer = 0;
 addEventListener('pointerdown', () => (lastPointer = performance.now()), true);
@@ -470,7 +469,8 @@ const stage = () => (R && R.kind === 'dom' ? $('.dom-wall') : $('.gl'));
 
 function onDown(e) {
   if (mode !== 'wall' || (e.button !== undefined && e.button !== 0)) return;
-  drag.on = true; drag.moved = false; drag.id = e.pointerId; drag.touch = e.pointerType === 'touch';
+  drag.on = true; drag.moved = false; drag.glide = false; drag.id = e.pointerId;
+  cam.tx = cam.x; cam.ty = cam.y; W.drift = 0;   // a press holds the wall still, gliding or drifting
   drag.sx = drag.lx = e.clientX; drag.sy = drag.ly = e.clientY; drag.vx = drag.vy = 0; drag.t = performance.now(); drag.dist = 0;
   try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
   cursor.el.classList.add('down');
@@ -499,7 +499,7 @@ function onUp(e) {
     if (t) openFromTile(t);
   } else if (!RM) {
     const since = performance.now() - drag.t;
-    if (since < 80) { cam.tx -= drag.vx * 260; cam.ty -= drag.vy * 260; }
+    if (since < 80) { cam.tx -= drag.vx * 260; cam.ty -= drag.vy * 260; drag.glide = true; }
   }
   drag.moved = false;
   lastInput = performance.now();
@@ -510,11 +510,13 @@ function onWheel(e) {
   const f = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? VH : 1;
   let dx = e.deltaX * f, dy = e.deltaY * f;
   if (e.shiftKey && !dx) { dx = dy; dy = 0; }
+  drag.glide = false;
   cam.tx += clamp(dx, -240, 240) * 1.1;
   cam.ty += clamp(dy, -240, 240) * 1.1;
   lastInput = performance.now();
   if (Math.abs(dx) + Math.abs(dy) > 2) shrinkTitle();
 }
+const keyScroll = { t: 0, y: 0 };
 function onKey(e) {
   if (e.key === 'Escape') { escape(); return; }
   if (lb.open) {
@@ -522,12 +524,26 @@ function onKey(e) {
     if (step) { e.preventDefault(); lbShow(lb.i + step, true); }
     return;
   }
-  if (mode !== 'wall' || panel) return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  // pages and projects scroll from the keyboard wherever the focus is (it starts on Close, outside the scrolling part)
+  const sc = panel ? $('.panel-scroll', $('#' + panel)) : mode === 'project' ? pjScroll : null;
+  if (sc) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const by = { ArrowDown: 90, ArrowUp: -90, PageDown: VH * 0.85, PageUp: -VH * 0.85, Home: -sc.scrollHeight, End: sc.scrollHeight }[e.key];
+    if (by) {
+      e.preventDefault();
+      // quick presses add up: each goes on from where the last was heading
+      const now = performance.now(), from = now - keyScroll.t < 400 ? keyScroll.y : sc.scrollTop;
+      keyScroll.t = now; keyScroll.y = clamp(from + by, 0, sc.scrollHeight - sc.clientHeight);
+      sc.scrollTo({ top: keyScroll.y, behavior: RM ? 'auto' : 'smooth' });
+    }
+    return;
+  }
+  if (mode !== 'wall') return;
   const step = 260 * G.s;
   const map = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-  if (map[e.key]) { e.preventDefault(); cam.tx += map[e.key][0]; cam.ty += map[e.key][1]; lastInput = performance.now(); shrinkTitle(); }
+  if (map[e.key]) { e.preventDefault(); drag.glide = false; cam.tx += map[e.key][0]; cam.ty += map[e.key][1]; lastInput = performance.now(); shrinkTitle(); }
 }
 
 function hitTest(x, y) {
@@ -570,17 +586,15 @@ function preload(src) {
    Cursor
    ========================================================================= */
 const cursor = {
-  el: $('.cur'), name: $('.cur-name'), act: $('.cur-act'), x: VW / 2, y: VH / 2, owner: null,
+  el: $('.cur'), name: $('.cur-name'), act: $('.cur-act'), owner: null,
   state(s, owner) {
     if (owner !== undefined && this.owner && this.owner !== owner && !s) return;
     this.owner = s ? owner : null;
     this.el.classList.toggle('view', s === 'view');
     this.el.classList.toggle('drag', s === 'drag');
   },
-  update(dt) {
-    this.x = lerp(this.x, pointer.x, damp(0.28, dt)); this.y = lerp(this.y, pointer.y, damp(0.28, dt));
-    this.el.style.transform = `translate3d(${this.x.toFixed(1)}px,${this.y.toFixed(1)}px,0)`;
-  },
+  // it stands in for the real pointer, hidden over the wall, so it goes exactly where that is
+  update() { this.el.style.transform = `translate3d(${pointer.x}px,${pointer.y}px,0)`; },
 };
 
 /* =========================================================================
@@ -754,8 +768,8 @@ function innerFrom(t, rect) {
 /* =========================================================================
    Project view
    ========================================================================= */
-const pj = $('.pj'), pjScroll = $('.pj-scroll'), pjInner = $('.pj-inner');
-let pjLenis = null, pjCur = null, pjHeroKey = null, origin = null, prevMode = 'wall', busy = false;
+const pj = $('.pj'), pjScroll = $('.pj-scroll');
+let pjCur = null, pjHeroKey = null, origin = null, prevMode = 'wall', busy = false;
 const grid = $('.pj-grid');
 // project images: two columns, one below 861px (see .pj-grid)
 const GRID_SIZES = '(max-width: 860px) 94vw, 48vw';
@@ -817,7 +831,6 @@ function renderProject(p, heroKey) {
     f.append(b, c); li.append(f); grid.append(li);
   });
   pjScroll.scrollTop = 0;
-  if (pjLenis) pjLenis.scrollTo(0, { immediate: true });
 }
 function heroIn() {
   const w = $$('.pj-title .w > span'), k = $('.pj-kicker'), cue = $('.pj-scrollcue');
@@ -886,8 +899,6 @@ function showProject() {
   requestAnimationFrame(() => pj.classList.add('shade'));
   setInert(true);
   $('.bar').classList.add('is-hidden');
-  if (!pjLenis && Lenis && !RM) pjLenis = new Lenis({ wrapper: pjScroll, content: pjInner, lerp: 0.09, smoothWheel: true });
-  if (pjLenis) pjLenis.start();
 }
 async function openFromTile(t) {
   if (busy || mode !== 'wall') return;
@@ -915,9 +926,9 @@ async function openFromTile(t) {
     fl.el.remove(); t.hide = 1; showProject(); gsap.from(pj, { opacity: 0, duration: 0.4 });
     wallVisible(false); busy = false; focusIn(); return;
   }
-  dimTo(0, 0.9);
-  gsap.to(W, { zoomMul: 0.93, duration: 1.2, ease: 'power3.inOut' });
-  const tl = gsap.timeline({ defaults: { duration: 1.15, ease: 'expo.inOut' } });
+  dimTo(0, 0.7);
+  gsap.to(W, { zoomMul: 0.93, duration: 0.8, ease: 'power3.out' });
+  const tl = gsap.timeline({ defaults: { duration: 0.8, ease: 'power3.out' } });
   tl.to(fl.el, { left: 0, top: 0, width: VW, height: VH }, 0)
     .to(fl.media, { x: 0, y: 0, scale: 1, filter: GRADE_OFF }, 0)
     .add(() => {
@@ -948,7 +959,7 @@ function openProject(p, fromEl) {
       wallVisible(false); busy = false; focusIn(); return;
     }
     const fl = makeFlyer(img, { x: r.left, y: r.top, w: r.width, h: r.height });
-    gsap.timeline({ defaults: { duration: 1.1, ease: 'expo.inOut' } })
+    gsap.timeline({ defaults: { duration: 0.8, ease: 'power3.out' } })
       .to(fl.el, { left: 0, top: 0, width: VW, height: VH }, 0)
       .add(() => { showProject(); heroIn(); requestAnimationFrame(() => fl.el.remove()); wallVisible(false); busy = false; focusIn(); });
   };
@@ -965,7 +976,6 @@ function closeProject() {
   // opened from the menu: the menu is still open underneath, so go back to it
   const back = prevMode === 'menu' && menu.classList.contains('on') ? 'menu' : 'wall';
   const t = back === 'wall' && origin && origin.k === pjHeroKey && !scrolled && !RM ? origin : null;
-  if (pjLenis) pjLenis.stop();
   const end = () => {
     pj.classList.remove('on', 'shade'); gsap.set(pj, { opacity: 0 });
     $$('.pj video').forEach((v) => v.pause());
@@ -974,14 +984,14 @@ function closeProject() {
     if (back === 'menu') { $('#main').inert = true; $('.foot').inert = true; const b = $(`.menu-pj[data-p="${pjCur.id}"]`); if (b) focusSoft(b); }
   };
   if (back === 'menu') {
-    gsap.to(pj, { opacity: 0, duration: 0.6, ease: 'power2.inOut', onComplete: end });
+    gsap.to(pj, { opacity: 0, duration: 0.35, ease: 'power2.out', onComplete: end });
     return;
   }
-  dimTo(titleUp ? TD : 1, 1.1);
-  gsap.to(W, { zoomMul: 1, duration: 1.15, ease: 'expo.inOut' });
+  dimTo(titleUp ? TD : 1, 0.75);
+  gsap.to(W, { zoomMul: 1, duration: 0.75, ease: 'power3.out' });
   if (!t) {
     if (origin) origin.hide = 1;
-    gsap.to(pj, { opacity: 0, duration: 0.7, ease: 'power2.inOut', onComplete: end });
+    gsap.to(pj, { opacity: 0, duration: 0.4, ease: 'power2.out', onComplete: end });
     return;
   }
   // FLIP back into the tile, which has not moved
@@ -993,10 +1003,11 @@ function closeProject() {
   gsap.set(fl.media, { filter: GRADE_OFF, scale: 1, x: 0, y: 0 });
   pj.classList.remove('on', 'shade'); gsap.set(pj, { opacity: 0 });
   t.hov = 0;
-  const k = 1 - 0.075 * cam.bend;
-  const rect = tileRect(t, k, 0);
+  // the wall holds still until the photo has landed on its tile
+  W.drift = 0; cam.tx = cam.x; cam.ty = cam.y; cam.vx = cam.vy = 0; cam.bend = cam.press = 0; place(t);
+  const rect = tileRect(t, 1, 0);
   const inner = innerFrom(t, rect);
-  gsap.timeline({ defaults: { duration: 1.05, ease: 'expo.inOut' } })
+  gsap.timeline({ defaults: { duration: 0.75, ease: 'power3.out' } })
     .to(fl.el, { left: rect.x, top: rect.y, width: rect.w, height: rect.h }, 0)
     .to(fl.media, { ...inner, filter: gradeOn() }, 0)
     .add(() => {
@@ -1102,7 +1113,7 @@ function lbZoomAt(s, px, py, animate) {
   lbZoom(s, px - cx - (px - cx - lb.z.x) * r, py - cy - (py - cy - lb.z.y) * r, animate);
 }
 function lbOpen(j, btn) {
-  if (lb.open || lb.closing || !pjCur) return;
+  if (busy || mode !== 'project' || lb.open || lb.closing || !pjCur) return;
   if (lb.keys !== pjCur.seq) lbBuild(pjCur.seq);
   lb.i = j; lb.x = 0; lb.z = { s: 1, x: 0, y: 0 };
   lbLayout();
@@ -1113,7 +1124,6 @@ function lbOpen(j, btn) {
   lbShow(j, false);
   lb.el.classList.add('on');
   pj.inert = true;
-  if (pjLenis) pjLenis.stop();
   history.pushState({ viewer: true }, '', location.href); lb.pushed = true;
   const r = btn ? btn.getBoundingClientRect() : null, f = lbFit(sl.k);
   const ready = () => focusSoft($('.lb-close'));
@@ -1139,7 +1149,7 @@ function lbClose(fromHistory) {
   let r = btn && btn.getBoundingClientRect();
   if (r && (r.bottom < 0 || r.top > VH)) {
     const y = pjScroll.scrollTop + r.top - (VH - r.height) / 2;
-    if (pjLenis) pjLenis.scrollTo(y, { immediate: true, force: true }); else pjScroll.scrollTop = y;
+    pjScroll.scrollTop = y;
     r = btn.getBoundingClientRect();
   }
   const end = () => {
@@ -1147,7 +1157,6 @@ function lbClose(fromHistory) {
     gsap.set(sl.m, { x: 0, y: 0, scale: 1, opacity: 1 }); lb.z = { s: 1, x: 0, y: 0 };
     for (const s of lb.slides) if (s.m.tagName === 'VIDEO') s.m.pause();
     pj.inert = false;
-    if (pjLenis) pjLenis.start();
     if (btn) focusSoft(btn);
   };
   gsap.to(lb.ui, { opacity: 0, duration: 0.25 });
@@ -1269,23 +1278,40 @@ lb.el.addEventListener('wheel', (e) => {
    Contact and Careers
    ========================================================================= */
 const menu = $('.menu'), menuPanel = $('.menu-panel'), menuScrim = $('.menu-scrim'), itog = $('.itog');
-const pBtn = $('.menu-pbtn'), pBox = $('.menu-projects');
+const pBtn = $('.menu-pbtn'), pBox = $('.menu-projects'), cBtns = $$('.menu-cbtn');
 gsap.set(menuPanel, { xPercent: 100 });   // waits off to the right
-function setProjects(open, instant) {
-  pBtn.setAttribute('aria-expanded', String(open));
-  menu.classList.toggle('pj-open', open);
-  gsap.killTweensOf(pBox);
+// Projects opens to the categories, and a category to its projects (one category at a time)
+function fold(btn, box, open, instant, closed) {
+  btn.setAttribute('aria-expanded', String(open));
+  gsap.killTweensOf(box);
   if (open) {
-    pBox.hidden = false;
-    // all the thumbnails are about to be seen; a lazy one below the fold of the menu would only load on scroll
-    for (const im of $$('img[loading="lazy"]', pBox)) im.loading = 'eager';
-    if (RM || instant) { gsap.set(pBox, { height: 'auto' }); return; }
-    gsap.fromTo(pBox, { height: 0 }, { height: 'auto', duration: 0.8, ease: 'expo.out' });
-    gsap.fromTo($$('.menu-cat-h, .menu-pj', pBox), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger: 0.035, delay: 0.08 });
-  } else if (RM || instant) { gsap.set(pBox, { height: 0 }); pBox.hidden = true; }
-  else gsap.to(pBox, { height: 0, duration: 0.5, ease: 'power3.inOut', onComplete: () => { pBox.hidden = true; } });
+    const from = box.hidden ? 0 : box.offsetHeight;   // reopened while closing: carry on from there
+    box.hidden = false;
+    if (RM || instant) gsap.set(box, { height: 'auto' });
+    else gsap.fromTo(box, { height: from }, { height: 'auto', duration: 0.35, ease: 'power3.out' });
+    return;
+  }
+  const end = () => { box.hidden = true; if (closed) closed(); };
+  if (RM || instant) { gsap.set(box, { height: 0 }); end(); }
+  else gsap.to(box, { height: 0, duration: 0.25, ease: 'power3.out', onComplete: end });
+}
+function setCat(btn, open, instant) {
+  const box = $('#' + btn.getAttribute('aria-controls'));
+  // all its thumbnails are about to be seen; a lazy one below the fold of the menu would only load on scroll
+  if (open) for (const im of $$('img[loading="lazy"]', box)) im.loading = 'eager';
+  // Projects may still be unfolding, to a height measured without this list
+  if (open && pBtn.getAttribute('aria-expanded') === 'true') { gsap.killTweensOf(pBox); gsap.set(pBox, { height: 'auto' }); }
+  fold(btn, box, open, instant);
+}
+function setProjects(open, instant) {
+  fold(pBtn, pBox, open, instant, () => { for (const b of cBtns) setCat(b, false, true); });
 }
 pBtn.addEventListener('click', () => setProjects(pBtn.getAttribute('aria-expanded') !== 'true'));
+for (const b of cBtns) b.addEventListener('click', () => {
+  const open = b.getAttribute('aria-expanded') !== 'true';
+  for (const o of cBtns) if (o !== b && o.getAttribute('aria-expanded') === 'true') setCat(o, false);
+  setCat(b, open);
+});
 function openMenu() {
   if (mode !== 'wall' || busy) return;
   mode = 'menu'; hovered = null; cursor.state(null);
@@ -1293,17 +1319,18 @@ function openMenu() {
   itog.setAttribute('aria-expanded', 'true');
   $('.bar').classList.add('menu-open');
   $('#main').inert = true; $('.foot').inert = true;
+  const closing = menu.classList.contains('on');   // reopened while sliding away: carry on from there
   menu.classList.add('on');
-  $('.menu-scroll').scrollTop = 0;
+  if (!closing) $('.menu-scroll').scrollTop = 0;
   $('.hint').classList.add('is-gone');
   guideLearnt('menu');
   dimTo(MENU_DIM, 0.7);
   gsap.to(W, { zoomMul: 0.965, duration: 1.1, ease: 'expo.out', overwrite: 'auto' });
   if (RM) { gsap.set(menuPanel, { xPercent: 0 }); gsap.set(menuScrim, { opacity: 1 }); }
   else {
-    gsap.fromTo(menuPanel, { xPercent: 100 }, { xPercent: 0, duration: 0.9, ease: 'expo.out', overwrite: true });
+    gsap.to(menuPanel, { xPercent: 0, duration: 0.9, ease: 'expo.out', overwrite: true });
     gsap.to(menuScrim, { opacity: 1, duration: 0.6, ease: 'power2.out', overwrite: true });
-    gsap.fromTo($$('.menu-list > li, .menu-foot', menu), { opacity: 0, x: 36 }, { opacity: 1, x: 0, duration: 1, ease: 'expo.out', stagger: 0.05, delay: 0.12, overwrite: true });
+    if (!closing) gsap.fromTo($$('.menu-list > li, .menu-foot', menu), { opacity: 0, x: 36 }, { opacity: 1, x: 0, duration: 1, ease: 'expo.out', stagger: 0.05, delay: 0.12, overwrite: true });
   }
   focusSoft($('.menu-a', menu));
 }
@@ -1318,8 +1345,8 @@ function closeMenu(quiet) {
   const done = () => { menu.classList.remove('on'); setProjects(false, true); };
   if (RM) done();
   else {
-    gsap.to(menuPanel, { xPercent: 100, duration: 0.6, ease: 'power3.inOut', overwrite: true, onComplete: done });
-    gsap.to(menuScrim, { opacity: 0, duration: 0.5, ease: 'power2.inOut', overwrite: true });
+    gsap.to(menuPanel, { xPercent: 100, duration: 0.4, ease: 'power3.out', overwrite: true, onComplete: done });
+    gsap.to(menuScrim, { opacity: 0, duration: 0.35, ease: 'power2.out', overwrite: true });
   }
   lastInput = performance.now();
   if (!quiet) focusSoft(itog);
@@ -1338,15 +1365,14 @@ $$('.menu-pj').forEach((a) => a.addEventListener('click', (e) => {
    About / Contact / Careers panels
    ========================================================================= */
 const PANELS = { about: 'About', contact: 'Contact', careers: 'Careers' };
-const lenisP = {};
 const navBtns = $$('.nav a');
 function setNav(id) { navBtns.forEach((b) => b.toggleAttribute('aria-current', b.dataset.go === id)); navBtns.forEach((b) => { if (b.dataset.go === id) b.setAttribute('aria-current', 'page'); }); }
 let panelOpener = null;
 function openPanel(id, quiet) {
-  if (mode === 'project' || mode === 'intro' || !PANELS[id]) return;
+  if (busy || mode === 'project' || mode === 'intro' || !PANELS[id]) return;
   if (panel === id) return;
   const prev = panel;
-  if (prev) { const pe = $('#' + prev); pe.classList.remove('on'); gsap.set(pe, { opacity: 0 }); if (lenisP[prev]) lenisP[prev].stop(); }
+  if (prev) { const pe = $('#' + prev); pe.classList.remove('on'); gsap.set(pe, { opacity: 0 }); }
   else panelOpener = mode === 'menu' ? itog : document.activeElement;
   if (mode === 'menu') closeMenu(true);
   panel = id; setNav(id);
@@ -1358,17 +1384,13 @@ function openPanel(id, quiet) {
   $('#main').inert = true; $('.foot').inert = true;
   $('.foot').classList.add('is-hidden');
   $('.panel-scroll', el).scrollTop = 0;
-  if (Lenis && !RM) {
-    if (!lenisP[id]) lenisP[id] = new Lenis({ wrapper: $('.panel-scroll', el), content: $('.panel-in', el), lerp: 0.09, smoothWheel: true });
-    lenisP[id].scrollTo(0, { immediate: true }); lenisP[id].start();
-  }
   wallSnap(!prev);   // a page opened from another one keeps its picture
   dimTo(PANEL_DIM, 0.9, 'power2.out');
   hovered = null; cursor.state(null);
   if (RM || quiet) gsap.set(el, { opacity: 1 });
   else {
     gsap.to(el, { opacity: 1, duration: prev ? 0.35 : 0.7, ease: 'power2.out' });
-    gsap.fromTo($$('[data-rise]', el), { opacity: 0, y: 46 }, { opacity: 1, y: 0, duration: 1.3, ease: 'expo.out', stagger: 0.07, delay: prev ? 0.05 : 0.2, clearProps: 'transform' });
+    gsap.fromTo($$('[data-rise]', el), { opacity: 0, y: 46 }, { opacity: 1, y: 0, duration: 1.3, ease: 'expo.out', stagger: 0.07, delay: 0.05, clearProps: 'transform' });
   }
   // the wall stops once the page covers it (after its dimming has finished)
   wallFrozen = false;
@@ -1380,11 +1402,10 @@ function closePanel() {
   const el = $('#' + panel), id = panel;
   panel = null; setNav('work'); wallFrozen = false;
   route(ROOT + '/');
-  if (lenisP[id]) lenisP[id].stop();
   $('#main').inert = false; $('.foot').inert = false;
   if (VW >= 700 || titleUp) $('.foot').classList.remove('is-hidden');
   dimTo(wallDim(), 1);
-  gsap.to(el, { opacity: 0, duration: RM ? 0 : 0.55, ease: 'power2.inOut', onComplete: () => el.classList.remove('on') });
+  gsap.to(el, { opacity: 0, duration: RM ? 0 : 0.35, ease: 'power2.out', onComplete: () => el.classList.remove('on') });
   lastInput = performance.now();
   if (panelOpener && panelOpener.focus) focusSoft(panelOpener);
   panelOpener = null;
@@ -1790,13 +1811,10 @@ function intro() {
 /* =========================================================================
    Loop + resize
    ========================================================================= */
-let last = performance.now(), lastWall = 0;
+let lastWall = 0;
 function tick(now) {
   requestAnimationFrame(tick);
-  const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
-  if (pjLenis && mode === 'project') pjLenis.raf(now);
-  if (panel && lenisP[panel]) lenisP[panel].raf(now);
-  if (FINE) cursor.update(dt);
+  if (FINE) cursor.update();
   if (!tilesStarted && R && (mode === 'wall' || mode === 'menu') && !panel) loadTiles();
   // the wall is drawn at most ~100 times a second: on 120–240 Hz screens every 2nd or 3rd refresh, evenly. Asked for
   // every refresh, a laptop's or phone's graphics chip misses some, and the uneven steps show as stutter

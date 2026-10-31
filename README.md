@@ -6,7 +6,8 @@ panels. Every project and panel also has its own address (`/work/kings-avenue/`,
 `/contact/`, `/careers/`), so links can be shared and search engines can find each page.
 
 The top bar holds Work / About / Contact, the light/dark button and, on computers and tablets, the
-Menu (the three lines; it lists every project by category, and Careers). Phones show Work / About /
+Menu (the three lines; About, Projects, which opens to the categories and then their projects,
+Contact and Careers). Phones show Work / About /
 Contact instead of the Menu; Careers is linked from Contact, and the projects are on the wall.
 
 The whole site uses one typeface, DM Sans (set in `astro.config.mjs`). The home page opens with
@@ -70,9 +71,10 @@ after 30 minutes unused; reopen it from the same **Code → Codespaces** menu.
    and the order of the `images`. The paragraphs about the project go below the second `---`.
 5. Delete the `draft: true` line to publish it.
 
-`category` is the heading the project is listed under when Projects is opened in the Menu
-(now `Architecture` or `Interiors`). Type any name to start a new heading; headings appear in
-the order of their first project. `order` sets the order of projects.
+`category` is the category the project is listed under when Projects is opened in the Menu
+(now `Architectural` or `Interior`): Projects shows the categories, and clicking one shows its
+projects. Type any name to start a new category; they appear in the order of their first
+project. `order` sets the order of projects.
 
 Adding images to an existing project works the same way: drop them in, run `npm run images`,
 then list them in its `index.md`. Run it whenever you add renders. It never touches images that

@@ -2,7 +2,7 @@
 title: Ketanbhai Residence
 order: 6
 type: Residential interiors
-category: Interiors
+category: Interior
 location:            # e.g. Ahmedabad, Gujarat
 line: A home in *warm* neutrals
 facts:

@@ -2,7 +2,7 @@
 title: Brijeshbhai Residence
 order: 5
 type: Residential interiors
-category: Interiors
+category: Interior
 location:            # e.g. Ahmedabad, Gujarat
 line: A home of *arches* and screens
 facts:

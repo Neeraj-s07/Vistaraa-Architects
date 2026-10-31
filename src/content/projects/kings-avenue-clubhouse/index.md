@@ -2,7 +2,7 @@
 title: Kings Avenue Clubhouse
 order: 3
 type: Clubhouse interiors
-category: Interiors
+category: Interior
 location:            # e.g. Ahmedabad, Gujarat
 line: Shared rooms for *fifty* homes
 facts:

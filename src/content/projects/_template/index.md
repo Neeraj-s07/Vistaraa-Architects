@@ -6,7 +6,7 @@
 title: Project Name
 order: 10                  # position in the menu and on the project list
 type: Private residence    # shown under the name, e.g. Office interior, Masterplan
-category: Architecture     # the heading it is listed under in the menu (Projects), e.g. Interiors
+category: Architectural    # the category it is listed under in the menu (Projects), e.g. Interior
 location: Ahmedabad, Gujarat
 line: A short line about the *idea* of the project.   # a *word* in stars is set lighter
 

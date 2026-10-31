@@ -2,7 +2,7 @@
 title: Aryan Icon
 order: 2
 type: Commercial tower
-category: Architecture
+category: Architectural
 location: Nerul MIDC, Navi Mumbai
 line: A Working Address for *Navi Mumbai*
 facts:

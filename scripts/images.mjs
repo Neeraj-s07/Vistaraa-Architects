@@ -123,7 +123,7 @@ for (const project of readdirSync(PROJECTS).sort(natural)) {
       `title: ${titleOf(project)}`,
       'order: 99                 # position in the menu',
       'type: Project type        # e.g. Private residence, Office interiors',
-      'category: Architecture    # menu heading under Projects, e.g. Interiors',
+      'category: Architectural   # menu category under Projects, e.g. Interior',
       'location:                 # e.g. Ahmedabad, Gujarat',
       "line: ''                  # a short line; a *word* in stars is set lighter",
       'facts:',

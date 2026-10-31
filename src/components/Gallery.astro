@@ -118,10 +118,10 @@ const shown = { style: 'opacity: 1' };
         <li>
           <button type="button" class="menu-a menu-pbtn" aria-expanded="false" aria-controls="menu-projects"><span>Projects</span><i class="menu-pm" aria-hidden="true"></i></button>
           <div class="menu-projects" id="menu-projects" hidden>
-            {cats.map((c) => (
-              <section class="menu-cat" aria-label={c.name}>
-                <h3 class="menu-cat-h">{c.name}<span>{String(c.projects.length).padStart(2, '0')}</span></h3>
-                <ul>
+            {cats.map((c, i) => (
+              <div class="menu-cat">
+                <button type="button" class="menu-cbtn" aria-expanded="false" aria-controls={`menu-cat-${i}`}><span class="menu-cname">{c.name}</span><span class="menu-cn">{String(c.projects.length).padStart(2, '0')}</span><i class="menu-pm" aria-hidden="true"></i></button>
+                <ul id={`menu-cat-${i}`} hidden>
                   {c.projects.map((p) => (
                     <li><a class="menu-pj" href={p.url} data-p={p.id}>
                       <span class="menu-th"><img src={p.thumb} alt="" loading="lazy" decoding="async" /></span>
@@ -130,7 +130,7 @@ const shown = { style: 'opacity: 1' };
                     </a></li>
                   ))}
                 </ul>
-              </section>
+              </div>
             ))}
           </div>
         </li>

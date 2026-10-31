@@ -2,7 +2,7 @@
 title: Niraj’s Bungalow
 order: 4
 type: Residential interiors
-category: Interiors
+category: Interior
 location:            # e.g. Ahmedabad, Gujarat
 line: Interiors for a *private* bungalow
 facts:

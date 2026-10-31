@@ -195,12 +195,18 @@ em { font-style: normal; color: var(--fg); }
 .menu-pm { position: relative; width: 16px; height: 16px; flex: none; margin-right: 2px; }
 .menu-pm::before, .menu-pm::after { content: ""; position: absolute; left: 0; top: 7.5px; width: 16px; height: 1px; background: currentColor; transition: transform .6s var(--ease); }
 .menu-pm::after { transform: rotate(90deg); }
-.menu.pj-open .menu-pm::after { transform: rotate(0deg); }
+[aria-expanded="true"] > .menu-pm::after { transform: rotate(0deg); }
 .menu-projects { overflow: hidden; }
-.menu-cat { padding: 0 0 16px; }
-.menu-cat-h { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 4px; font: 500 10.5px/1 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--fg-2); }
-.menu-cat-h span { font-weight: 400; letter-spacing: .08em; color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.menu-cat ul { list-style: none; margin: 0; padding: 0; }
+.menu-cat { border-top: 1px solid var(--line); }
+.menu-cbtn { display: flex; align-items: baseline; gap: 12px; width: 100%; padding: 14px 0; font: 300 clamp(20px, 1.8vw, 24px)/1.2 var(--sans); letter-spacing: -.02em; color: var(--fg); text-align: left; -webkit-tap-highlight-color: transparent; }
+.menu-cname { transition: transform .6s var(--ease); }
+.menu-cn { margin-right: auto; font: 400 11px/1 var(--sans); letter-spacing: .08em; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.menu-cbtn .menu-pm { align-self: center; width: 12px; height: 12px; }
+.menu-cbtn .menu-pm::before, .menu-cbtn .menu-pm::after { top: 5.5px; width: 12px; }
+.menu-cat ul { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+.menu-cat li:last-child { padding-bottom: 14px; }
+/* the lists clip what is outside them, so these rings stay inside */
+.menu-cbtn:focus-visible, .menu-pj:focus-visible { outline-offset: -2px; }
 .menu-pj { display: grid; grid-template-columns: 84px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 18px; align-items: center; padding: 9px 0; text-decoration: none; color: var(--fg); -webkit-tap-highlight-color: transparent; }
 .menu-th { grid-row: span 2; width: 84px; aspect-ratio: 3 / 2; overflow: hidden; background: var(--bg-2); }
 .menu-th img { width: 100%; height: 100%; object-fit: cover; transition: transform 1s var(--ease); }
@@ -208,6 +214,7 @@ em { font-style: normal; color: var(--fg); }
 .menu-pt { align-self: start; font: 400 12px/1.45 var(--sans); color: var(--fg-3); }
 @media (hover: hover) and (pointer: fine) {
   .menu-a:hover > span { transform: translateX(10px); }
+  .menu-cbtn:hover .menu-cname { transform: translateX(6px); }
   .menu-pj:hover .menu-th img { transform: scale(1.06); }
   .menu-pj .menu-pn { transition: transform .6s var(--ease); }
   .menu-pj:hover .menu-pn { transform: translateX(6px); }
@@ -313,6 +320,7 @@ em { font-style: normal; color: var(--fg); }
 /* closed panels and a closed project view skip layout entirely (cheaper start, smoother wall) */
 .panel:not(.on) .panel-in, .pj:not(.on) .pj-inner { content-visibility: hidden; }
 .panel-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 62px, #000 150px); mask-image: linear-gradient(to bottom, transparent 0, transparent 62px, #000 150px); }
+.panel-scroll { scroll-padding-top: 150px; }
 .panel-scroll::-webkit-scrollbar { display: none; }
 .panel-in { max-width: 1320px; margin: 0 auto; padding: clamp(120px, 20vh, 220px) var(--pad) 40px; }
 .panel .btn-close { position: absolute; right: var(--pad); top: calc(84px + env(safe-area-inset-top)); z-index: 3; }

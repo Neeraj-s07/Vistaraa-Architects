@@ -1,8 +1,8 @@
 ---
-title: Studio Disan Corporate Office
+title: Corporate Office 1
 order: 7
 type: Office interiors
-category: Interiors
+category: Interior
 location: Nerul, Navi Mumbai
 line: A tenant floor at *Aryan Icon*
 facts:

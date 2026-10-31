@@ -2,7 +2,7 @@
 title: Kings Avenue
 order: 1
 type: Residential township
-category: Architecture
+category: Architectural
 location:            # e.g. Ahmedabad, Gujarat
 line: A Legacy of *Privileged* Living
 facts:
